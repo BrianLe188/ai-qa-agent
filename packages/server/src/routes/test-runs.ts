@@ -12,6 +12,11 @@ import {
 import { runTests } from "../services/test-runner";
 import { broadcast } from "./_context";
 import type { TestCase } from "../types";
+import {
+  pauseRun,
+  resumeRun,
+  getPauseInfo,
+} from "../services/pause-controller";
 
 // Track active test runs
 const activeRuns = new Map<string, { abort: boolean }>();
@@ -31,6 +36,56 @@ export const testRunRoutes = new Elysia({ prefix: "/test-runs" })
       throw new Error("Test run not found");
     }
     return { testRun: run };
+  })
+
+  // --- Pause a running test ---
+  .post("/:id/pause", ({ params }) => {
+    const success = pauseRun(params.id);
+    if (success) {
+      const info = getPauseInfo(params.id);
+      broadcast({
+        type: "test-run:paused",
+        data: {
+          runId: params.id,
+          pausedAt: info.pausedAt!,
+          stepOrder: info.pausedAtStep,
+        },
+      });
+      broadcast({
+        type: "log",
+        data: {
+          runId: params.id,
+          level: "warn",
+          message: "⏸️ Test run paused by user",
+        },
+      });
+    }
+    return { success, ...getPauseInfo(params.id) };
+  })
+
+  // --- Resume a paused test ---
+  .post("/:id/resume", ({ params }) => {
+    const success = resumeRun(params.id);
+    if (success) {
+      broadcast({
+        type: "test-run:resumed",
+        data: { runId: params.id },
+      });
+      broadcast({
+        type: "log",
+        data: {
+          runId: params.id,
+          level: "info",
+          message: "▶️ Test run resumed by user",
+        },
+      });
+    }
+    return { success, ...getPauseInfo(params.id) };
+  })
+
+  // --- Get pause status ---
+  .get("/:id/pause-status", ({ params }) => {
+    return getPauseInfo(params.id);
   })
 
   // --- Start a new test run ---

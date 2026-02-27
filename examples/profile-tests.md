@@ -1,16 +1,5 @@
 # Profile Edit Feature — Test Cases
 
-## Target URL
-
-http://localhost:4000
-
-## Preconditions
-
-User must be logged in:
-
-- Email: user@example.com
-- Password: Password123!
-
 ---
 
 ## TC-001: Edit profile with valid data
@@ -19,14 +8,17 @@ User must be logged in:
 
 **Steps:**
 
-1. Login at / with valid credentials
-2. Click the "Profile" link in the navigation bar
-3. Change the First Name field to "Johnny"
-4. Change the Last Name field to "Smith"
-5. Enter "+84 123 456 789" into the Phone field
-6. Type "I love testing!" into the Bio textarea
-7. Select "Japan" from the Country dropdown
-8. Click the "Save Changes" button
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Profile" link in the navigation bar
+6. Change the First Name field to "Johnny"
+7. Change the Last Name field to "Smith"
+8. Enter "+84 123 456 789" into the Phone field
+9. Type "I love testing!" into the Bio textarea
+10. Select "Japan" from the Country dropdown
+11. Click the "Save Changes" button
 
 **Expected Result:** Success message "Profile updated successfully!" is displayed
 
@@ -38,9 +30,13 @@ User must be logged in:
 
 **Steps:**
 
-1. Navigate to /profile.html (must be logged in)
-2. Clear the First Name field (leave it empty)
-3. Click "Save Changes"
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Profile" link in the navigation bar
+6. Clear the First Name field (leave it empty)
+7. Click "Save Changes"
 
 **Expected Result:** Validation error "First name is required" is displayed
 
@@ -52,9 +48,13 @@ User must be logged in:
 
 **Steps:**
 
-1. Navigate to /profile.html (must be logged in)
-2. Clear the Last Name field (leave it empty)
-3. Click "Save Changes"
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Profile" link in the navigation bar
+6. Clear the Last Name field (leave it empty)
+7. Click "Save Changes"
 
 **Expected Result:** Validation error "Last name is required" is displayed
 
@@ -66,9 +66,13 @@ User must be logged in:
 
 **Steps:**
 
-1. Navigate to /profile.html (must be logged in)
-2. Change the First Name to something different
-3. Click the "Cancel" button
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Profile" link in the navigation bar
+6. Change the First Name to something different
+7. Click the "Cancel" button
 
 **Expected Result:** User is redirected back to /dashboard.html without saving changes
 
@@ -80,9 +84,13 @@ User must be logged in:
 
 **Steps:**
 
-1. Navigate to /profile.html (must be logged in)
-2. Uncheck "Email notifications" checkbox
-3. Check "SMS notifications" checkbox
-4. Click "Save Changes"
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Profile" link in the navigation bar
+6. Uncheck "Email notifications" checkbox
+7. Check "SMS notifications" checkbox
+8. Click "Save Changes"
 
 **Expected Result:** Success message is displayed, notification preferences are updated

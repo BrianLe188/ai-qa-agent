@@ -1,16 +1,5 @@
 # Product & Cart Feature — Test Cases
 
-## Target URL
-
-http://localhost:4000
-
-## Preconditions
-
-User must be logged in first:
-
-- Email: user@example.com
-- Password: Password123!
-
 ---
 
 ## TC-001: View all products
@@ -20,8 +9,10 @@ User must be logged in first:
 **Steps:**
 
 1. Navigate to /
-2. Login with valid credentials (user@example.com / Password123!)
-3. Click the "Products" link in the navigation bar
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
 
 **Expected Result:** Products page is displayed with a grid of products including Wireless Headphones, USB-C Hub, Mechanical Keyboard, etc.
 
@@ -33,8 +24,12 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Type "keyboard" into the search input field
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Type "keyboard" into the search input field
 
 **Expected Result:** Only "Mechanical Keyboard" product is shown in the grid, other products are hidden
 
@@ -46,8 +41,12 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Select "Clothing" from the category dropdown filter
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Select "Clothing" from the category dropdown filter
 
 **Expected Result:** Only clothing items are shown: "T-Shirt (Dev Edition)" and "Hoodie (Code Mode)"
 
@@ -59,8 +58,12 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Select "Price: Low → High" from the sort dropdown
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Select "Price: Low → High" from the sort dropdown
 
 **Expected Result:** Products are reordered with cheapest first (Phone Case $15.00) and most expensive last (Mechanical Keyboard $120.00)
 
@@ -72,8 +75,12 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Click the "Add to Cart" button on "Wireless Headphones"
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Click the "Add to Cart" button on the first product card "Wireless Headphones"
 
 **Expected Result:** Cart summary appears at the bottom showing "Wireless Headphones × 1" with total "$89.99", and a notification "Wireless Headphones added to cart" is briefly shown
 
@@ -85,11 +92,15 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Click "Add to Cart" on "Wireless Headphones"
-3. Click "Add to Cart" on "USB-C Hub"
-4. Verify the cart shows 2 items with correct total
-5. Click the "Checkout" button
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Click "Add to Cart" on "Wireless Headphones"
+7. Click "Add to Cart" on "USB-C Hub"
+8. Verify the cart summary shows 2 items
+9. Click the "Checkout" button in the cart summary
 
 **Expected Result:** Notification "Order placed successfully! 🎉" appears and cart is cleared
 
@@ -101,7 +112,11 @@ User must be logged in first:
 
 **Steps:**
 
-1. Navigate to /products.html (must be logged in)
-2. Type "nonexistent product xyz" into the search field
+1. Navigate to /
+2. Enter email "user@example.com" into the email field
+3. Enter password "Password123!" into the password field
+4. Click the "Sign In" button
+5. Click the "Products" link in the navigation bar
+6. Type "nonexistent product xyz" into the search field
 
 **Expected Result:** No products are displayed in the grid

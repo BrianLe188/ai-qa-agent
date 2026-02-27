@@ -135,14 +135,21 @@ const PLAYWRIGHT_ACTION_SCHEMA = {
         enum: [
           "navigate",
           "click",
+          "dblclick",
           "fill",
+          "clear",
           "select",
           "check",
+          "uncheck",
           "wait",
           "assert",
+          "assert-url",
+          "assert-count",
           "screenshot",
           "hover",
           "press",
+          "scroll",
+          "upload",
         ],
         description: "The Playwright action type",
       },
@@ -152,7 +159,8 @@ const PLAYWRIGHT_ACTION_SCHEMA = {
       },
       value: {
         type: ["string", "null"] as const,
-        description: "Value for fill/select/press actions",
+        description:
+          "Value for fill/select/press. For scroll: 'down'|'up'|'bottom'|'top'|pixels. For assert-url: expected URL substring. For assert-count: expected count. For upload: file path.",
       },
       url: {
         type: ["string", "null"] as const,
@@ -166,6 +174,11 @@ const PLAYWRIGHT_ACTION_SCHEMA = {
         type: "string" as const,
         description: "Human-readable action description",
       },
+      assertType: {
+        type: ["string", "null"] as const,
+        description:
+          "For assert: 'visible' | 'hidden' | 'contains-text' | 'has-attribute'. Default: 'contains-text'",
+      },
     },
     required: [
       "type",
@@ -174,6 +187,7 @@ const PLAYWRIGHT_ACTION_SCHEMA = {
       "url",
       "timeout",
       "description",
+      "assertType",
     ] as const,
     additionalProperties: false as const,
   },
@@ -276,9 +290,30 @@ CRITICAL RULES — YOU MUST FOLLOW THESE EXACTLY:
 
 4. **For fill actions:** If the step says "Enter email" or "Enter 'X' into the email field", use the value from the step, not a made-up value.
 
-5. **Set unused fields to null.** For example, if the action is "click", set value and url to null.
+5. **Set unused fields to null.** For example, if the action is "click", set value, url, and assertType to null.
 
-6. **If the step says "Leave field empty", do NOT generate a fill action.** Skip it or use a fill with empty string value only if needed to clear the field.`;
+6. **If the step says "Leave field empty"**, use type "clear" with the selector of the field, or "fill" with value "".
+
+7. **Available action types and when to use them:**
+   - navigate: go to a URL
+   - click: single click on element
+   - dblclick: double-click on element
+   - fill: type text into an input/textarea (requires selector + value)
+   - clear: clear an input field (uses selector, no value needed)
+   - select: choose from dropdown/select (requires selector + value)
+   - check: check a checkbox
+   - uncheck: uncheck a checkbox
+   - hover: hover over an element
+   - press: press a keyboard key (value = key name like "Enter", "Escape", "Tab")
+   - scroll: scroll page. Use selector to scroll element into view, or value "down"/"up"/"bottom"/"top"/pixels
+   - upload: upload a file (selector = file input, value = file path)
+   - wait: wait for element to appear or fixed time
+   - assert: verify element state. Set assertType to "visible", "hidden", "contains-text", or "has-attribute"
+   - assert-url: verify current URL contains expected substring (put expected in value, no selector needed)
+   - assert-count: verify number of matching elements (selector = CSS selector, value = expected count as string)
+   - screenshot: take a screenshot
+
+8. **For assert actions:** Always set assertType. If checking text, use "contains-text". If checking visibility, use "visible" or "hidden".`;
 
 const FAILURE_ANALYSIS_PROMPT = `You are a QA expert analyzing test failures. Given a screenshot and expected vs actual results, provide a detailed analysis of what went wrong, possible root causes, and suggested fixes.`;
 
@@ -469,6 +504,7 @@ Generate the Playwright action for this step.`;
       url: result.url,
       timeout: result.timeout,
       description: result.description || step.action,
+      assertType: result.assertType,
     };
   }
 

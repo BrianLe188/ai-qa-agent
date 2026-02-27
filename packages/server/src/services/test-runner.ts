@@ -21,6 +21,13 @@ import type {
 } from "../types";
 import { ProviderRegistry } from "./ai/registry";
 import { SCREENSHOTS_DIR } from "../db/database";
+import { saveReport } from "./report-generator";
+import {
+  initPauseState,
+  cleanupPauseState,
+  waitIfPaused,
+  isPaused,
+} from "./pause-controller";
 
 export type WSBroadcast = (event: WSEvent) => void;
 
@@ -45,6 +52,18 @@ const DEFAULT_OPTIONS: RunnerOptions = {
   viewport: { width: 1280, height: 720 },
   timeout: 30000,
 };
+
+/**
+ * Auto-dismiss browser dialogs (alert, confirm, prompt)
+ */
+function setupDialogHandler(page: Page): void {
+  page.on("dialog", async (dialog) => {
+    console.log(
+      `  📢 Dialog detected: [${dialog.type()}] "${dialog.message()}"`,
+    );
+    await dialog.accept();
+  });
+}
 
 /**
  * Execute a single Playwright action on the page
@@ -77,12 +96,24 @@ async function executeAction(
       }
       break;
 
+    case "dblclick":
+      if (action.selector) {
+        await page.locator(action.selector).first().dblclick({ timeout });
+      }
+      break;
+
     case "fill":
       if (action.selector && action.value !== undefined) {
         await page
           .locator(action.selector)
           .first()
           .fill(action.value, { timeout });
+      }
+      break;
+
+    case "clear":
+      if (action.selector) {
+        await page.locator(action.selector).first().fill("", { timeout });
       }
       break;
 
@@ -101,6 +132,12 @@ async function executeAction(
       }
       break;
 
+    case "uncheck":
+      if (action.selector) {
+        await page.locator(action.selector).first().uncheck({ timeout });
+      }
+      break;
+
     case "hover":
       if (action.selector) {
         await page.locator(action.selector).first().hover({ timeout });
@@ -113,6 +150,41 @@ async function executeAction(
           .locator(action.selector)
           .first()
           .press(action.value, { timeout });
+      } else if (action.value) {
+        await page.keyboard.press(action.value);
+      }
+      break;
+
+    case "scroll":
+      if (action.selector) {
+        await page
+          .locator(action.selector)
+          .first()
+          .scrollIntoViewIfNeeded({ timeout });
+      } else {
+        // Scroll by amount: value = "down" | "up" | "bottom" | "top" | pixels
+        const dir = action.value?.toLowerCase() ?? "down";
+        if (dir === "bottom") {
+          await page.evaluate(() =>
+            window.scrollTo(0, document.body.scrollHeight),
+          );
+        } else if (dir === "top") {
+          await page.evaluate(() => window.scrollTo(0, 0));
+        } else if (dir === "up") {
+          await page.evaluate(() => window.scrollBy(0, -500));
+        } else {
+          const px = parseInt(dir) || 500;
+          await page.evaluate((y) => window.scrollBy(0, y), px);
+        }
+      }
+      break;
+
+    case "upload":
+      if (action.selector && action.value) {
+        await page
+          .locator(action.selector)
+          .first()
+          .setInputFiles(action.value, { timeout });
       }
       break;
 
@@ -127,16 +199,67 @@ async function executeAction(
     case "assert":
       if (action.selector) {
         const element = page.locator(action.selector).first();
-        if (action.value) {
-          // Check if element contains expected text
-          const text = await element.textContent({ timeout });
-          if (!text?.includes(action.value)) {
-            throw new Error(
-              `Assertion failed: expected "${action.value}" but got "${text}"`,
-            );
+        const atype = action.assertType ?? "contains-text";
+
+        switch (atype) {
+          case "visible":
+            await element.waitFor({ state: "visible", timeout });
+            break;
+          case "hidden":
+            await element.waitFor({ state: "hidden", timeout });
+            break;
+          case "has-attribute":
+            if (action.value) {
+              // value = "attr=expected" e.g. "class=active"
+              const [attr, ...rest] = action.value.split("=");
+              const expected = rest.join("=");
+              const actual = await element.getAttribute(attr, { timeout });
+              if (expected && !actual?.includes(expected)) {
+                throw new Error(
+                  `Assertion failed: attribute "${attr}" expected to contain "${expected}" but got "${actual}"`,
+                );
+              }
+              if (!actual && !expected) {
+                // Just check attribute exists
+              }
+            }
+            break;
+          default: {
+            // contains-text (default)
+            if (action.value) {
+              const text = await element.textContent({ timeout });
+              if (!text?.includes(action.value)) {
+                throw new Error(
+                  `Assertion failed: expected "${action.value}" but got "${text}"`,
+                );
+              }
+            } else {
+              await element.waitFor({ state: "visible", timeout });
+            }
           }
-        } else {
-          await element.waitFor({ state: "visible", timeout });
+        }
+      }
+      break;
+
+    case "assert-url":
+      if (action.value) {
+        const currentUrl = page.url();
+        if (!currentUrl.includes(action.value)) {
+          throw new Error(
+            `URL assertion failed: expected URL to contain "${action.value}" but got "${currentUrl}"`,
+          );
+        }
+      }
+      break;
+
+    case "assert-count":
+      if (action.selector && action.value) {
+        const expectedCount = parseInt(action.value);
+        const actualCount = await page.locator(action.selector).count();
+        if (actualCount !== expectedCount) {
+          throw new Error(
+            `Count assertion failed: expected ${expectedCount} elements matching "${action.selector}" but found ${actualCount}`,
+          );
         }
       }
       break;
@@ -148,6 +271,33 @@ async function executeAction(
     default:
       console.warn(`Unknown action type: ${action.type}`);
   }
+}
+
+/**
+ * Execute action with retry logic
+ */
+async function executeActionWithRetry(
+  page: Page,
+  action: PlaywrightAction,
+  maxRetries: number = 2,
+): Promise<void> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await executeAction(page, action);
+      return; // success
+    } catch (error: any) {
+      lastError = error;
+
+      if (attempt < maxRetries) {
+        // Wait briefly before retry
+        await page.waitForTimeout(500);
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 /**
@@ -269,6 +419,27 @@ async function runTestCase(
 
   // Execute each step
   for (const step of testCase.steps) {
+    // Check if paused — wait until resumed
+    if (isPaused(runId)) {
+      broadcast({
+        type: "log",
+        data: {
+          runId,
+          level: "info",
+          message: `  ⏸️ Paused before step ${step.order}. Waiting for resume...`,
+        },
+      });
+      await waitIfPaused(runId);
+      broadcast({
+        type: "log",
+        data: {
+          runId,
+          level: "info",
+          message: `  ▶️ Resumed! Continuing from step ${step.order}`,
+        },
+      });
+    }
+
     const stepStart = Date.now();
 
     try {
@@ -287,15 +458,33 @@ async function runTestCase(
         },
       });
 
-      // Execute the action
-      await executeAction(page, action);
-      await page.waitForTimeout(300); // Brief pause for UI to settle
+      // Execute the action (with automatic retry)
+      await executeActionWithRetry(page, action);
+
+      // Wait for network to settle (handles AJAX-heavy pages)
+      try {
+        await page.waitForLoadState("networkidle", { timeout: 3000 });
+      } catch {
+        // Fallback: brief pause if networkidle times out
+        await page.waitForTimeout(300);
+      }
+      // Take screenshot of each step for visual verification
+      let stepScreenshot: string | undefined;
+      try {
+        stepScreenshot = await takeScreenshot(
+          page,
+          `step-${testCase.id}-${step.order}`,
+        );
+      } catch {
+        /* ignore screenshot errors */
+      }
 
       const stepResult: StepResult = {
         stepOrder: step.order,
         status: "passed",
         action: step.action,
         expected: step.expected,
+        screenshotPath: stepScreenshot,
         durationMs: Date.now() - stepStart,
       };
 
@@ -420,6 +609,9 @@ export async function runTests(
     data: { runId, total: enabledCases.length },
   });
 
+  // Initialize pause state for this run
+  initPauseState(runId);
+
   broadcast({
     type: "log",
     data: {
@@ -444,6 +636,7 @@ export async function runTests(
 
     const page = await context.newPage();
     page.setDefaultTimeout(opts.timeout);
+    setupDialogHandler(page);
 
     // Run each test case sequentially
     for (const testCase of enabledCases) {
@@ -498,6 +691,9 @@ export async function runTests(
   run.completedAt = new Date().toISOString();
   run.durationMs = Date.now() - new Date(run.startedAt).getTime();
 
+  // Clean up pause state
+  cleanupPauseState(runId);
+
   broadcast({
     type: "test-run:completed",
     data: { runId, summary: run.summary },
@@ -511,6 +707,29 @@ export async function runTests(
       message: `\n📊 Results: ${run.summary.passed}/${run.summary.total} passed | ${run.summary.failed} failed | ${run.summary.error} errors | ${run.durationMs}ms`,
     },
   });
+
+  // Auto-generate HTML report
+  try {
+    const reportFilename = saveReport(run);
+    broadcast({
+      type: "report:ready",
+      data: {
+        runId,
+        reportUrl: `/api/reports/${runId}`,
+        downloadUrl: `/api/reports/download/${reportFilename}`,
+      },
+    });
+    broadcast({
+      type: "log",
+      data: {
+        runId,
+        level: "info",
+        message: `📋 HTML Report: /api/reports/${runId}`,
+      },
+    });
+  } catch (err: any) {
+    console.error("Failed to generate report:", err.message);
+  }
 
   return run;
 }

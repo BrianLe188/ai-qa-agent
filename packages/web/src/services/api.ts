@@ -104,3 +104,59 @@ export function startTestRun(body: {
     body: JSON.stringify(body),
   });
 }
+
+// --- Pause / Resume ---
+export function pauseTestRun(runId: string) {
+  return request<{ success: boolean; isPaused: boolean }>(
+    `/test-runs/${runId}/pause`,
+    { method: "POST" },
+  );
+}
+
+export function resumeTestRun(runId: string) {
+  return request<{ success: boolean; isPaused: boolean }>(
+    `/test-runs/${runId}/resume`,
+    { method: "POST" },
+  );
+}
+
+export function getPauseStatus(runId: string) {
+  return request<{
+    isPaused: boolean;
+    pausedAt: string | null;
+    pausedAtStep: number | null;
+  }>(`/test-runs/${runId}/pause-status`);
+}
+
+// --- Reports ---
+export function getReports() {
+  return request<Array<{ filename: string; runId: string }>>("/reports/");
+}
+
+export function getReportUrl(runId: string) {
+  return `${API_BASE}/reports/${runId}`;
+}
+
+export function getReportDownloadUrl(filename: string) {
+  return `${API_BASE}/reports/download/${filename}`;
+}
+
+// --- Visual Verification ---
+export function saveBaseline(runId: string, testPlanId?: string) {
+  return request<{ success: boolean; saved: number; message: string }>(
+    `/visual/baseline/${runId}`,
+    {
+      method: "POST",
+      body: JSON.stringify(testPlanId ? { testPlanId } : {}),
+    },
+  );
+}
+
+export function compareVisual(runId: string, testPlanId?: string) {
+  const query = testPlanId ? `?testPlanId=${testPlanId}` : "";
+  return request<any>(`/visual/${runId}/compare${query}`);
+}
+
+export function getVisualDiffUrl(filename: string) {
+  return `${API_BASE}/visual/diffs/${filename}`;
+}

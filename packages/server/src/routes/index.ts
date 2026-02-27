@@ -7,6 +7,8 @@ import { providerRoutes } from "./providers";
 import { testPlanRoutes } from "./test-plans";
 import { testRunRoutes } from "./test-runs";
 import { screenshotRoutes } from "./screenshots";
+import { reportRoutes } from "./reports";
+import { visualRoutes } from "./visual";
 
 export const apiRoutes = new Elysia({ prefix: "/api" })
   .get("/health", () => ({
@@ -17,4 +19,6 @@ export const apiRoutes = new Elysia({ prefix: "/api" })
   .use(providerRoutes)
   .use(testPlanRoutes)
   .use(testRunRoutes)
-  .use(screenshotRoutes);
+  .use(screenshotRoutes)
+  .use(reportRoutes)
+  .use(visualRoutes);

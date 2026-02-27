@@ -117,19 +117,28 @@ export interface PlaywrightAction {
   type:
     | "navigate"
     | "click"
+    | "dblclick"
     | "fill"
+    | "clear"
     | "select"
     | "check"
+    | "uncheck"
     | "wait"
     | "assert"
+    | "assert-url"
+    | "assert-count"
     | "screenshot"
     | "hover"
-    | "press";
+    | "press"
+    | "scroll"
+    | "upload";
   selector?: string;
   value?: string;
   url?: string;
   timeout?: number;
   description: string;
+  /** For assert: "visible" | "hidden" | "contains-text" | "has-attribute" */
+  assertType?: string;
 }
 
 export interface FailureAnalysis {
@@ -182,6 +191,15 @@ export type WSEvent =
       data: { runId: string; summary: TestRun["summary"] };
     }
   | { type: "test-run:error"; data: { runId: string; error: string } }
+  | {
+      type: "report:ready";
+      data: { runId: string; reportUrl: string; downloadUrl: string };
+    }
+  | {
+      type: "test-run:paused";
+      data: { runId: string; pausedAt: string; stepOrder: number | null };
+    }
+  | { type: "test-run:resumed"; data: { runId: string } }
   | {
       type: "log";
       data: {

@@ -6,6 +6,13 @@ import {
   AlertTriangle,
   Clock,
   Image as ImageIcon,
+  FileText,
+  Download,
+  Eye,
+  Camera,
+  GitCompare,
+  Pause,
+  Play,
 } from "lucide-react";
 import * as api from "../services/api";
 
@@ -26,6 +33,11 @@ export default function TestRunLive({ events, clearEvents }: Props) {
     [],
   );
   const [isLive, setIsLive] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [visualReport, setVisualReport] = useState<any>(null);
+  const [showVisual, setShowVisual] = useState(false);
+  const [baselineMsg, setBaselineMsg] = useState<string | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   // Load persisted run data
@@ -37,6 +49,7 @@ export default function TestRunLive({ events, clearEvents }: Props) {
         setTestRun(res.testRun);
         if (res.testRun?.status === "completed") {
           setIsLive(false);
+          setReportUrl(api.getReportUrl(runId));
         }
       })
       .catch(() => {});
@@ -56,7 +69,6 @@ export default function TestRunLive({ events, clearEvents }: Props) {
           setTestRun((prev: any) => {
             if (!prev) return prev;
             const results = [...(prev.results || [])];
-            // Avoid duplicates
             const existingIdx = results.findIndex(
               (r: any) => r.testCaseId === event.data.result.testCaseId,
             );
@@ -76,13 +88,24 @@ export default function TestRunLive({ events, clearEvents }: Props) {
               : prev,
           );
           setIsLive(false);
-          // Reload full data
           if (runId) {
             api
               .getTestRun(runId)
               .then((res) => setTestRun(res.testRun))
               .catch(() => {});
           }
+          break;
+
+        case "report:ready":
+          setReportUrl(event.data.reportUrl);
+          break;
+
+        case "test-run:paused":
+          setIsPaused(true);
+          break;
+
+        case "test-run:resumed":
+          setIsPaused(false);
           break;
 
         case "log":
@@ -99,6 +122,29 @@ export default function TestRunLive({ events, clearEvents }: Props) {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  const handleSaveBaseline = async () => {
+    if (!runId || !testRun) return;
+    try {
+      const res = await api.saveBaseline(runId, testRun.testPlanId);
+      setBaselineMsg(res.message);
+      setTimeout(() => setBaselineMsg(null), 4000);
+    } catch (err: any) {
+      setBaselineMsg("Failed to save baseline: " + err.message);
+    }
+  };
+
+  const handleCompareVisual = async () => {
+    if (!runId || !testRun) return;
+    try {
+      const report = await api.compareVisual(runId, testRun.testPlanId);
+      setVisualReport(report);
+      setShowVisual(true);
+    } catch (err: any) {
+      setBaselineMsg("No baseline found. Save a baseline first!");
+      setTimeout(() => setBaselineMsg(null), 4000);
+    }
+  };
 
   if (!testRun) {
     return (
@@ -119,19 +165,161 @@ export default function TestRunLive({ events, clearEvents }: Props) {
   const progress =
     summary.total > 0 ? (completedCount / summary.total) * 100 : 0;
 
+  const handlePauseResume = async () => {
+    if (!runId) return;
+    try {
+      if (isPaused) {
+        await api.resumeTestRun(runId);
+        setIsPaused(false);
+      } else {
+        await api.pauseTestRun(runId);
+        setIsPaused(true);
+      }
+    } catch (err: any) {
+      console.error("Pause/resume failed:", err);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
-        <h1 className="page-title">
-          {isLive ? "🔴 Live" : "📊"} Test Run #{runId?.slice(0, 6)}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            {isLive ? (isPaused ? "⏸️ Paused" : "🔴 Live") : "📊"} Test Run #
+            {runId?.slice(0, 6)}
+          </h1>
+          {isLive && (
+            <button
+              onClick={handlePauseResume}
+              className={isPaused ? "btn btn-primary" : "btn btn-secondary"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.82rem",
+                padding: "6px 16px",
+                borderRadius: 20,
+                ...(isPaused
+                  ? { animation: "pulse 1.5s ease-in-out infinite" }
+                  : {}),
+              }}
+            >
+              {isPaused ? (
+                <>
+                  <Play size={14} />
+                  Resume
+                </>
+              ) : (
+                <>
+                  <Pause size={14} />
+                  Pause
+                </>
+              )}
+            </button>
+          )}
+        </div>
         <p className="page-subtitle">
           Target: {testRun.targetUrl} ·{" "}
           {isLive
-            ? "Running..."
+            ? isPaused
+              ? "Paused — waiting for resume..."
+              : "Running..."
             : `Completed in ${((testRun.durationMs || 0) / 1000).toFixed(1)}s`}
         </p>
       </div>
+
+      {/* Action Bar — Report, Baseline, Visual Compare */}
+      {!isLive && (
+        <div className="card mb-4" style={{ padding: "12px 16px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            {reportUrl && (
+              <>
+                <a
+                  href={reportUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    textDecoration: "none",
+                    fontSize: "0.82rem",
+                    padding: "6px 14px",
+                  }}
+                >
+                  <FileText size={14} />
+                  View Report
+                </a>
+                <a
+                  href={api.getReportDownloadUrl(`report-${runId}.html`)}
+                  className="btn btn-secondary"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    textDecoration: "none",
+                    fontSize: "0.82rem",
+                    padding: "6px 14px",
+                  }}
+                >
+                  <Download size={14} />
+                  Download HTML
+                </a>
+              </>
+            )}
+
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.82rem",
+                padding: "6px 14px",
+              }}
+              onClick={handleSaveBaseline}
+            >
+              <Camera size={14} />
+              Save as Baseline
+            </button>
+
+            <button
+              className="btn btn-secondary"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.82rem",
+                padding: "6px 14px",
+              }}
+              onClick={handleCompareVisual}
+            >
+              <GitCompare size={14} />
+              Visual Compare
+            </button>
+
+            {baselineMsg && (
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  color: "var(--accent-success)",
+                  fontWeight: 500,
+                }}
+              >
+                {baselineMsg}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Progress */}
       {isLive && (
@@ -174,6 +362,206 @@ export default function TestRunLive({ events, clearEvents }: Props) {
           <div className="stat-label">Errors</div>
         </div>
       </div>
+
+      {/* Visual Comparison Panel */}
+      {showVisual && visualReport && (
+        <div className="card mb-4">
+          <div
+            className="card-header"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <h2 className="card-title">🔍 Visual Comparison</h2>
+            <button
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+              }}
+              onClick={() => setShowVisual(false)}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Visual Summary Stats */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 12,
+              padding: 16,
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: "var(--accent-success)",
+                }}
+              >
+                {visualReport.summary.matched}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                Matched
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: "var(--accent-danger)",
+                }}
+              >
+                {visualReport.summary.mismatched}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                Mismatched
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: "#6366f1",
+                }}
+              >
+                {visualReport.summary.newBaselines}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                New
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div
+                style={{
+                  fontSize: "1.4rem",
+                  fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                {visualReport.summary.noScreenshot}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-tertiary)",
+                }}
+              >
+                No Screenshot
+              </div>
+            </div>
+          </div>
+
+          {/* Visual Diff List */}
+          <div style={{ padding: "0 16px 16px" }}>
+            {visualReport.diffs.map((diff: any) => (
+              <div
+                key={diff.testCaseId}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--border-subtle)",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <span>{diff.testCaseTitle}</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {diff.status === "match" && (
+                    <span
+                      style={{
+                        background: "#10b981",
+                        color: "white",
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      MATCH
+                    </span>
+                  )}
+                  {diff.status === "mismatch" && (
+                    <>
+                      <span
+                        style={{
+                          background: "#ef4444",
+                          color: "white",
+                          padding: "2px 8px",
+                          borderRadius: 10,
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {diff.mismatchPercentage}% DIFF
+                      </span>
+                      {diff.diffScreenshot && (
+                        <a
+                          href={api.getVisualDiffUrl(diff.diffScreenshot)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "#6366f1" }}
+                        >
+                          <Eye size={14} />
+                        </a>
+                      )}
+                    </>
+                  )}
+                  {diff.status === "new" && (
+                    <span
+                      style={{
+                        background: "#6366f1",
+                        color: "white",
+                        padding: "2px 8px",
+                        borderRadius: 10,
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      NEW
+                    </span>
+                  )}
+                  {diff.status === "no-screenshot" && (
+                    <span
+                      style={{
+                        color: "var(--text-tertiary)",
+                        fontSize: "0.72rem",
+                      }}
+                    >
+                      No screenshot
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {(testRun.results || []).length > 0 && (
@@ -282,7 +670,7 @@ function ResultCard({ result }: { result: any }) {
                     <div className="flex items-center gap-2 mt-2">
                       <ImageIcon size={12} />
                       <a
-                        href={`/api/screenshots/${step.screenshotPath}`}
+                        href={`/api/screenshots/${step.screenshotPath.split("/").pop()}`}
                         target="_blank"
                         rel="noreferrer"
                         style={{ fontSize: "0.78rem" }}

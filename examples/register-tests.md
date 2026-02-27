@@ -1,9 +1,5 @@
 # Registration Feature — Test Cases
 
-## Target URL
-
-http://localhost:4000/register.html
-
 ---
 
 ## TC-001: Register with valid information

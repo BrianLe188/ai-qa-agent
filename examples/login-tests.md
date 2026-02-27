@@ -1,9 +1,5 @@
 # Login Feature — Test Cases
 
-## Target URL
-
-http://localhost:4000
-
 ## Test Credentials
 
 - Email: user@example.com
