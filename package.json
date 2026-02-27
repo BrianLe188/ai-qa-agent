@@ -1,0 +1,16 @@
+{
+  "name": "ai-qa-agent",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:server": "bun run --filter server dev",
+    "dev:web": "bun run --filter web dev",
+    "dev:demo": "bun run --filter demo-app dev"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9"
+  }
+}

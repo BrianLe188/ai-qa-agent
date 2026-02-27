@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Products — Demo App</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">🛒 ShopDemo</div>
+    <div class="nav-links">
+      <a href="/dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/products.html" class="nav-link active">Products</a>
+      <a href="/profile.html" class="nav-link">Profile</a>
+    </div>
+    <div class="nav-user">
+      <span id="user-name">User</span>
+      <button class="btn btn-sm btn-outline" onclick="handleLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>Products</h1>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+      <input type="text" id="search-input" class="input" placeholder="Search products..." oninput="filterProducts()">
+      <select id="category-filter" class="input select" onchange="filterProducts()">
+        <option value="">All Categories</option>
+        <option value="electronics">Electronics</option>
+        <option value="accessories">Accessories</option>
+        <option value="clothing">Clothing</option>
+      </select>
+      <select id="sort-by" class="input select" onchange="filterProducts()">
+        <option value="name">Sort by Name</option>
+        <option value="price-asc">Price: Low → High</option>
+        <option value="price-desc">Price: High → Low</option>
+      </select>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="product-grid" id="product-grid"></div>
+
+    <!-- Cart Summary -->
+    <div class="cart-summary" id="cart-summary" style="display:none">
+      <h3>🛒 Cart (<span id="cart-count">0</span> items)</h3>
+      <div id="cart-items"></div>
+      <div class="cart-total">Total: <strong id="cart-total">$0.00</strong></div>
+      <button class="btn btn-primary" id="checkout-btn" onclick="handleCheckout()">Checkout</button>
+    </div>
+
+    <div id="notification" class="notification" style="display:none"></div>
+  </div>
+
+  <script>
+    const products = [
+      { id: 1, name: 'Wireless Headphones', price: 89.99, category: 'electronics', image: '🎧' },
+      { id: 2, name: 'USB-C Hub', price: 45.00, category: 'electronics', image: '🔌' },
+      { id: 3, name: 'Mechanical Keyboard', price: 120.00, category: 'electronics', image: '⌨️' },
+      { id: 4, name: 'Phone Case', price: 15.00, category: 'accessories', image: '📱' },
+      { id: 5, name: 'Laptop Sleeve', price: 35.00, category: 'accessories', image: '💼' },
+      { id: 6, name: 'T-Shirt (Dev Edition)', price: 25.00, category: 'clothing', image: '👕' },
+      { id: 7, name: 'Hoodie (Code Mode)', price: 55.00, category: 'clothing', image: '🧥' },
+      { id: 8, name: 'Webcam HD', price: 75.00, category: 'electronics', image: '📷' },
+    ];
+
+    let cart = [];
+
+    function renderProducts(list) {
+      const grid = document.getElementById('product-grid');
+      grid.innerHTML = list.map(p => `
+        <div class="product-card" data-product-id="${p.id}">
+          <div class="product-image">${p.image}</div>
+          <div class="product-name">${p.name}</div>
+          <div class="product-category">${p.category}</div>
+          <div class="product-price">$${p.price.toFixed(2)}</div>
+          <button class="btn btn-sm btn-primary add-to-cart-btn" onclick="addToCart(${p.id})">Add to Cart</button>
+        </div>
+      `).join('');
+    }
+
+    function filterProducts() {
+      const search = document.getElementById('search-input').value.toLowerCase();
+      const category = document.getElementById('category-filter').value;
+      const sortBy = document.getElementById('sort-by').value;
+
+      let filtered = products.filter(p => {
+        const matchSearch = p.name.toLowerCase().includes(search);
+        const matchCategory = !category || p.category === category;
+        return matchSearch && matchCategory;
+      });
+
+      if (sortBy === 'price-asc') filtered.sort((a, b) => a.price - b.price);
+      else if (sortBy === 'price-desc') filtered.sort((a, b) => b.price - a.price);
+      else filtered.sort((a, b) => a.name.localeCompare(b.name));
+
+      renderProducts(filtered);
+    }
+
+    function addToCart(productId) {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      const existing = cart.find(c => c.id === productId);
+      if (existing) {
+        existing.qty++;
+      } else {
+        cart.push({ ...product, qty: 1 });
+      }
+
+      updateCart();
+      showNotification(`${product.name} added to cart`);
+    }
+
+    function updateCart() {
+      const summary = document.getElementById('cart-summary');
+      const countEl = document.getElementById('cart-count');
+      const totalEl = document.getElementById('cart-total');
+      const itemsEl = document.getElementById('cart-items');
+
+      if (cart.length === 0) {
+        summary.style.display = 'none';
+        return;
+      }
+
+      summary.style.display = 'block';
+      countEl.textContent = cart.reduce((sum, c) => sum + c.qty, 0);
+      totalEl.textContent = '$' + cart.reduce((sum, c) => sum + c.price * c.qty, 0).toFixed(2);
+      itemsEl.innerHTML = cart.map(c => `
+        <div class="cart-item">
+          <span>${c.image} ${c.name} × ${c.qty}</span>
+          <span>$${(c.price * c.qty).toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    function handleCheckout() {
+      if (cart.length === 0) return;
+      showNotification('Order placed successfully! 🎉');
+      cart = [];
+      updateCart();
+    }
+
+    function showNotification(msg) {
+      const el = document.getElementById('notification');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 3000);
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem('user');
+      window.location.href = '/';
+    }
+
+    // Auth guard
+    const user = JSON.parse(sessionStorage.getItem('user') || 'null');
+    if (!user) { window.location.href = '/'; }
+    else { document.getElementById('user-name').textContent = user.name; }
+
+    // Initial render
+    renderProducts(products);
+  </script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login — Demo App</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="card login-card">
+        <div class="logo">🛒 ShopDemo</div>
+        <h1>Sign In</h1>
+        <p class="subtitle">Enter your credentials to continue</p>
+
+        <div
+          id="error-message"
+          class="error-message"
+          style="display: none"
+        ></div>
+
+        <form id="login-form" onsubmit="return handleLogin(event);">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="you@example.com"
+              required
+            />
+            <span class="field-error" id="email-error"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Enter your password"
+              required
+            />
+            <span class="field-error" id="password-error"></span>
+          </div>
+
+          <div class="form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remember" /> Remember me
+            </label>
+            <a href="/forgot-password.html" class="link">Forgot password?</a>
+          </div>
+
+          <button type="submit" id="login-btn" class="btn btn-primary">
+            Sign In
+          </button>
+        </form>
+
+        <p class="footer-text">
+          Don't have an account?
+          <a href="/register.html" class="link">Sign up</a>
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // Demo credentials
+      const VALID_EMAIL = "user@example.com";
+      const VALID_PASSWORD = "Password123!";
+
+      function handleLogin(e) {
+        e.preventDefault();
+        clearErrors();
+
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+
+        // Validation
+        let hasError = false;
+
+        if (!email) {
+          showFieldError("email-error", "Email is required");
+          hasError = true;
+        } else if (!email.includes("@") || !email.includes(".")) {
+          showFieldError("email-error", "Please enter a valid email address");
+          hasError = true;
+        }
+
+        if (!password) {
+          showFieldError("password-error", "Password is required");
+          hasError = true;
+        }
+
+        if (hasError) return false;
+
+        // Auth check
+        if (email === VALID_EMAIL && password === VALID_PASSWORD) {
+          sessionStorage.setItem(
+            "user",
+            JSON.stringify({ email, name: "John Doe" }),
+          );
+          window.location.href = "/dashboard.html";
+        } else {
+          showError("Invalid email or password");
+        }
+
+        return false;
+      }
+
+      function showError(msg) {
+        const el = document.getElementById("error-message");
+        el.textContent = msg;
+        el.style.display = "block";
+      }
+
+      function showFieldError(id, msg) {
+        document.getElementById(id).textContent = msg;
+      }
+
+      function clearErrors() {
+        document.getElementById("error-message").style.display = "none";
+        document
+          .querySelectorAll(".field-error")
+          .forEach((el) => (el.textContent = ""));
+      }
+
+      // Redirect if already logged in
+      if (sessionStorage.getItem("user")) {
+        window.location.href = "/dashboard.html";
+      }
+    </script>
+  </body>
+</html>

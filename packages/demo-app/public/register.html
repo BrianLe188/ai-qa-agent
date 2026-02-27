@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — Demo App</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card login-card">
+      <div class="logo">🛒 ShopDemo</div>
+      <h1>Create Account</h1>
+      <p class="subtitle">Fill in your details to get started</p>
+
+      <div id="success-message" class="success-message" style="display:none"></div>
+      <div id="error-message" class="error-message" style="display:none"></div>
+
+      <form id="register-form" onsubmit="return handleRegister(event)">
+        <div class="form-group">
+          <label for="fullname">Full Name</label>
+          <input type="text" id="fullname" name="fullname" placeholder="John Doe" required>
+          <span class="field-error" id="fullname-error"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="you@example.com" required>
+          <span class="field-error" id="email-error"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Min 8 characters" required>
+          <span class="field-error" id="password-error"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="confirm-password">Confirm Password</label>
+          <input type="password" id="confirm-password" name="confirm-password" placeholder="Re-enter password" required>
+          <span class="field-error" id="confirm-password-error"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Phone (optional)</label>
+          <input type="tel" id="phone" name="phone" placeholder="+84 123 456 789">
+        </div>
+
+        <label class="checkbox-label">
+          <input type="checkbox" id="terms" required> I agree to the <a href="#" class="link">Terms of Service</a>
+        </label>
+
+        <button type="submit" id="register-btn" class="btn btn-primary">Create Account</button>
+      </form>
+
+      <p class="footer-text">
+        Already have an account? <a href="/" class="link">Sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    function handleRegister(e) {
+      e.preventDefault();
+      clearErrors();
+
+      const fullname = document.getElementById('fullname').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+      const terms = document.getElementById('terms').checked;
+
+      let hasError = false;
+
+      if (!fullname || fullname.length < 2) {
+        showFieldError('fullname-error', 'Name must be at least 2 characters');
+        hasError = true;
+      }
+
+      if (!email || !email.includes('@')) {
+        showFieldError('email-error', 'Please enter a valid email');
+        hasError = true;
+      }
+
+      if (!password || password.length < 8) {
+        showFieldError('password-error', 'Password must be at least 8 characters');
+        hasError = true;
+      }
+
+      if (password !== confirmPassword) {
+        showFieldError('confirm-password-error', 'Passwords do not match');
+        hasError = true;
+      }
+
+      if (!terms) {
+        showError('You must agree to the Terms of Service');
+        hasError = true;
+      }
+
+      if (hasError) return false;
+
+      // Simulate success
+      document.getElementById('register-form').style.display = 'none';
+      const success = document.getElementById('success-message');
+      success.textContent = 'Account created successfully! Redirecting to login...';
+      success.style.display = 'block';
+
+      setTimeout(() => { window.location.href = '/'; }, 2000);
+      return false;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-message');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function showFieldError(id, msg) {
+      document.getElementById(id).textContent = msg;
+    }
+
+    function clearErrors() {
+      document.getElementById('error-message').style.display = 'none';
+      document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
+    }
+  </script>
+</body>
+</html>

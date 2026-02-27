@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Demo App</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">🛒 ShopDemo</div>
+    <div class="nav-links">
+      <a href="/dashboard.html" class="nav-link active">Dashboard</a>
+      <a href="/products.html" class="nav-link">Products</a>
+      <a href="/profile.html" class="nav-link">Profile</a>
+    </div>
+    <div class="nav-user">
+      <span id="user-name">User</span>
+      <button id="logout-btn" class="btn btn-sm btn-outline" onclick="handleLogout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="container dashboard">
+    <h1>Welcome back, <span id="welcome-name">User</span>!</h1>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-number">12</div>
+        <div class="stat-label">Orders</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-number">$1,240</div>
+        <div class="stat-label">Total Spent</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-number">3</div>
+        <div class="stat-label">Wishlist</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-number">5</div>
+        <div class="stat-label">Reviews</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Recent Orders</h2>
+      <table class="table" id="orders-table">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Date</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>#ORD-1001</td>
+            <td>2026-02-25</td>
+            <td>Wireless Headphones</td>
+            <td>$89.99</td>
+            <td><span class="badge badge-success">Delivered</span></td>
+          </tr>
+          <tr>
+            <td>#ORD-1002</td>
+            <td>2026-02-24</td>
+            <td>USB-C Hub</td>
+            <td>$45.00</td>
+            <td><span class="badge badge-warning">Shipping</span></td>
+          </tr>
+          <tr>
+            <td>#ORD-1003</td>
+            <td>2026-02-22</td>
+            <td>Mechanical Keyboard</td>
+            <td>$120.00</td>
+            <td><span class="badge badge-success">Delivered</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="notification" class="notification" style="display:none"></div>
+  </div>
+
+  <script>
+    // Auth guard
+    const user = JSON.parse(sessionStorage.getItem('user') || 'null');
+    if (!user) {
+      window.location.href = '/';
+    } else {
+      document.getElementById('user-name').textContent = user.name;
+      document.getElementById('welcome-name').textContent = user.name;
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem('user');
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>
