@@ -1,0 +1,70 @@
+name: Deploy Landing Page to GitHub Pages
+
+on:
+  # Chạy deploy khi có code push lên nhánh main và có chỉnh sửa ở thư mục landing-page
+  push:
+    branches: ["main"]
+    paths:
+      - "landing-page/**"
+      - ".github/workflows/deploy-landing-page.yml"
+  # Cho phép kích hoạt deploy thủ công từ giao diện repository
+  workflow_dispatch:
+
+# Cấu hình quyền cho GITHUB_TOKEN để cho phép deploy lên GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Chỉ cho phép 1 luồng deploy chạy cùng lúc
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # Set default working directory
+    working-directory: ./landing-page
+
+jobs:
+  # Job khởi tạo và build dự án
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+          cache-dependency-path: ./landing-page/yarn.lock
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          static_site_generator: next
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build with Next.js (Static Export)
+        run: yarn build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./landing-page/out
+
+  # Job public bản build ở step trước lên GitHub Pages
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
