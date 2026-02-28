@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-neon-green: #39ff14;
+  --color-deep-violet: #7b2cbf;
+  --color-matte-black: #050505;
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+@layer utilities {
+  .glass-nav {
+    @apply bg-black/40 backdrop-blur-xl border-b border-white/10;
+  }
+  
+  .glow-button {
+    @apply relative overflow-hidden rounded-lg bg-deep-violet/20 border border-deep-violet/50 text-white font-medium transition-all hover:bg-deep-violet/40 hover:shadow-[0_0_20px_rgba(123,44,191,0.5)];
+  }
+
+  .glow-button-green {
+    @apply relative overflow-hidden rounded-lg bg-neon-green/10 border border-neon-green/50 text-neon-green font-medium transition-all hover:bg-neon-green/20 hover:shadow-[0_0_20px_rgba(57,255,20,0.3)];
+  }
+  
+  .text-gradient-violet {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-fuchsia-500;
+  }
+}
