@@ -37,7 +37,7 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/ai-qa-agent.git
+git clone git@github.com:BrianLe188/ai-qa-agent.git
 cd ai-qa-agent
 
 # Install dependencies for all workspaces

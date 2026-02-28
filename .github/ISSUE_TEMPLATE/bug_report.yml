@@ -1,0 +1,68 @@
+name: Bug report
+description: Create a report to help us improve the AI QA Agent!
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug here...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior.
+      value: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem. (You can also drag and drop images here).
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: Desktop / Server Environment OS (e.g. macOS 14.2 / Ubuntu 22.04)
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework / Bun Version
+      description: e.g. Bun 1.1.25
+    validations:
+      required: true
+  - type: input
+    id: playwright
+    attributes:
+      label: Playwright Version
+      description: e.g. 1.50.0
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: e.g. Chrome, Safari
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here (e.g. Are you using OpenAI Embeddings or Local Default?).
