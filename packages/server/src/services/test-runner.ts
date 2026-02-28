@@ -28,6 +28,12 @@ import {
   waitIfPaused,
   isPaused,
 } from "./pause-controller";
+import {
+  learn as memoryLearn,
+  recall as memoryRecall,
+  recordFailure as memoryRecordFailure,
+  type ElementFingerprint,
+} from "./memory-manager";
 
 export type WSBroadcast = (event: WSEvent) => void;
 
@@ -361,6 +367,7 @@ async function runTestCase(
   testCase: TestCase,
   targetUrl: string,
   runId: string,
+  testPlanId: string,
   broadcast: WSBroadcast,
 ): Promise<TestCaseResult> {
   const startTime = Date.now();
@@ -443,23 +450,112 @@ async function runTestCase(
     const stepStart = Date.now();
 
     try {
-      // Get current page context
-      const pageContext = await getPageContext(page);
+      // ======= MEMORY: Fast Path — Try cached selector first =======
+      const cached = await memoryRecall(step.action, testPlanId);
+      let action: PlaywrightAction;
+      let usedFastPath = false;
 
-      // Ask AI to map the step to a Playwright action
-      const action = await ai.mapStepToAction(step, pageContext);
+      if (cached) {
+        // We have a cached mapping — try it directly without AI
+        action = {
+          type: cached.mapping.actionType as any,
+          selector: cached.mapping.selector,
+          value: cached.mapping.actionValue || undefined,
+          description: step.action,
+        };
 
-      broadcast({
-        type: "log",
-        data: {
-          runId,
-          level: "info",
-          message: `  Step ${step.order}: ${action.description} → ${action.type}(${action.selector || action.url || ""})`,
-        },
-      });
+        const sourceName = cached.source === "exact" ? "SQLite" : "ChromaDB";
 
-      // Execute the action (with automatic retry)
-      await executeActionWithRetry(page, action);
+        broadcast({
+          type: "log",
+          data: {
+            runId,
+            level: "info",
+            message: `  Step ${step.order}: ⚡ Fast Path via ${sourceName} (${(cached.similarity * 100).toFixed(0)}% match) → ${action.type}(${action.selector})`,
+          },
+        });
+
+        try {
+          await executeActionWithRetry(page, action);
+          usedFastPath = true;
+        } catch {
+          // Fast Path failed — selector is stale, fall through to Slow Path
+          memoryRecordFailure(step.action, testPlanId);
+          broadcast({
+            type: "log",
+            data: {
+              runId,
+              level: "warn",
+              message: `  Step ${step.order}: ⚡→🧠 Fast Path failed, switching to AI (Self-healing)`,
+            },
+          });
+          usedFastPath = false;
+        }
+      }
+
+      // ======= MEMORY: Slow Path — Ask AI to find the element =======
+      if (!usedFastPath) {
+        const pageContext = await getPageContext(page);
+        action = await ai.mapStepToAction(step, pageContext);
+
+        broadcast({
+          type: "log",
+          data: {
+            runId,
+            level: "info",
+            message: `  Step ${step.order}: 🧠 AI Path → ${action.type}(${action.selector || action.url || ""})`,
+          },
+        });
+
+        await executeActionWithRetry(page, action);
+
+        // Save successful AI mapping to memory for future Fast Paths
+        if (action.selector) {
+          const fingerprint: ElementFingerprint = {
+            tagName: "unknown",
+            textContent: step.action,
+          };
+
+          // Try to extract fingerprint from the actual element
+          try {
+            const elInfo = await page.$eval(action.selector, (el: any) => ({
+              tagName: el.tagName?.toLowerCase() || "unknown",
+              textContent: (el.textContent || "").trim().slice(0, 100),
+              ariaLabel: el.getAttribute("aria-label") || undefined,
+              placeholder: el.getAttribute("placeholder") || undefined,
+              name: el.getAttribute("name") || undefined,
+              type: el.getAttribute("type") || undefined,
+              className: el.className?.toString()?.slice(0, 200) || undefined,
+            }));
+            Object.assign(fingerprint, elInfo);
+          } catch {
+            /* can't fingerprint, that's ok */
+          }
+
+          await memoryLearn({
+            stepDescription: step.action,
+            testPlanId,
+            targetUrl: testUrl,
+            selector: action.selector,
+            actionType: action.type,
+            actionValue: action.value,
+            fingerprint,
+          });
+        }
+      } else {
+        // Fast Path succeeded — reinforce the memory
+        if (cached?.mapping.selector) {
+          await memoryLearn({
+            stepDescription: step.action,
+            testPlanId,
+            targetUrl: testUrl,
+            selector: cached.mapping.selector,
+            actionType: cached.mapping.actionType || "click",
+            actionValue: cached.mapping.actionValue || undefined,
+            fingerprint: cached.mapping.fingerprint,
+          });
+        }
+      }
 
       // Wait for network to settle (handles AJAX-heavy pages)
       try {
@@ -532,6 +628,9 @@ async function runTestCase(
           message: `  ❌ Step ${step.order} failed: ${error.message}`,
         },
       });
+
+      // Record failure in memory so stale selectors are deprioritized
+      memoryRecordFailure(step.action, testPlanId);
 
       // Don't continue with remaining steps if one fails
       break;
@@ -645,6 +744,7 @@ export async function runTests(
         testCase,
         targetUrl,
         runId,
+        testPlanId,
         broadcast,
       );
       run.results.push(result);

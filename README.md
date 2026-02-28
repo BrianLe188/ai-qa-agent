@@ -1,113 +1,118 @@
-# 🤖 AI QA Agent
+# 🤖 AI QA Agent (Bun + Elysia + React + Playwright + ChromaDB)
 
-An AI-powered QA testing tool that reads test documents, automatically opens a browser to execute test cases, and generates additional test cases for comprehensive coverage.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Bun](https://img.shields.io/badge/Bun-%23000000.svg?style=flat&logo=bun&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
+![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white)
 
-## Features
+An **autonomous AI-powered QA testing tool** designed to drastically reduce the cost and time of E2E test maintenance.
 
-- 📄 **Document Parsing** — Upload markdown test cases or user stories; AI extracts structured test cases
-- 🧠 **AI Test Generation** — AI generates additional edge cases, security tests, and error handling scenarios
-- 🎭 **Browser Automation** — Playwright executes tests in a real browser (Chrome)
-- 📡 **Real-time Monitoring** — Watch test progress live via WebSocket
-- 📸 **Failure Screenshots** — Automatic screenshots on test failures
-- 🔌 **Multi-Provider AI** — Strategy pattern supports OpenAI (now), Gemini & Claude (coming soon)
-- 💾 **Local-First** — All data stored locally in SQLite, your API keys never leave your machine
+Instead of writing brittle CSS selectors, you write tests in **plain English**. The Agent interprets your intent, finds the right elements on the page, and executes the actions using Playwright. Most importantly, it features a **Self-Healing Memory System** (powered by SQLite + ChromaDB) that remembers selectors across test runs, ensuring blazingly fast execution while automatically recovering from UI changes.
 
-## Quick Start
+---
+
+## ✨ Key Features
+
+- **🗣️ Natural Language Tests:** Write test steps like "Click the Login button" or "Type password". No coding required.
+- **🧠 Self-Healing Memory (Fast Path vs. Slow Path):**
+  - _Slow Path:_ The AI analyzes the DOM to find the correct element for a step.
+  - _Fast Path:_ The Agent remembers (via SQLite + ChromaDB) the exact selector and "element fingerprint". On subsequent runs, it executes instantly without calling the AI API.
+  - _Self-Healing:_ If a UI change breaks the cached selector, the Agent instantly detects the fingerprint mismatch and falls back to the AI (Slow Path) to learn the new layout.
+- **🛡️ Strict Isolation:** Memory and selectors are isolated by `testPlanId` to prevent cross-project pollution.
+- **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states (e.g., "Is the chart showing an upward trend?").
+- **⚡ Insanely Fast Backend:** Built on top of **Bun** and **ElysiaJS**.
+- **🌐 Local Vector DB (ChromaDB):** Semantically matches test steps to reuse learned behaviors. Optional OpenAI embedding support for multilingual testing.
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.1+ installed
-- OpenAI API key
+- [Bun](https://bun.sh/) v1.1.x or higher
+- [Docker](https://www.docker.com/) (Required for running ChromaDB server)
+- OpenAI API Key (or other supported providers)
 
-### Install & Run
+### 1. Installation
 
 ```bash
-# Install dependencies
+# Clone the repository
+git clone https://github.com/your-username/ai-qa-agent.git
+cd ai-qa-agent
+
+# Install dependencies for all workspaces
 bun install
 
-# Install Playwright browsers (first time only)
+# Install Playwright browser binaries
 bunx playwright install chromium
-
-# Start the backend server
-cd packages/server && bun run dev
-
-# In another terminal, start the frontend
-cd packages/web && bun run dev
 ```
 
-Open **http://localhost:5173** in your browser.
+### 2. Start ChromaDB (Vector Database)
 
-### Configuration
+The agent uses ChromaDB to store semantic memories of test steps.
 
-1. Go to **Settings** page
-2. Enter your **OpenAI API key**
-3. Select your preferred model (GPT-4o recommended for best results)
-4. Click **Save**
-
-### Run Your First Test
-
-1. Go to **New Test** page
-2. Upload a test document (see `examples/login-tests.md` for format)
-3. Enter the **Target URL** of the application to test
-4. Click **Parse & Generate Test Cases**
-5. Review the extracted + AI-generated test cases
-6. Click **Run Test Cases**
-7. Watch the AI execute tests in a real browser in real-time!
-
-## Test Case Format
-
-```markdown
-# Feature Name Tests
-
-## TC-001: Test case title
-
-- **Priority:** High | Medium | Low | Critical
-- **URL:** /relative-path
-- **Steps:**
-  1. Description of action
-  2. Enter "value" into the field name
-  3. Click the "Button Text" button
-- **Expected:** What should happen
+```bash
+# Start a local ChromaDB instance on port 8000
+docker run -d -p 8000:8000 chromadb/chroma
 ```
 
-## Tech Stack
+### 3. Start the Development Servers
 
-| Component | Technology                |
-| --------- | ------------------------- |
-| Runtime   | Bun                       |
-| Backend   | Elysia (Bun-native)       |
-| Frontend  | Vite + React              |
-| AI        | OpenAI (Strategy Pattern) |
-| Browser   | Playwright                |
-| Database  | SQLite (Bun built-in)     |
-| Real-time | WebSocket                 |
+```bash
+# Start the Backend Server (Elysia + SQLite) -> http://localhost:3100
+bun run dev:server
 
-## Project Structure
+# Start the Frontend Dashboard (Vite + React) -> http://localhost:5173
+bun run dev:web
 
+# (Optional) Start the Demo E-commerce App to run tests against -> http://localhost:3000
+bun run dev:demo
 ```
+
+### 4. Configuration
+
+1. Open your browser to **http://localhost:5173**.
+2. Navigate to the **Settings** page.
+3. Enter your **OpenAI API Key** and select your preferred model (e.g., `gpt-4o-mini`).
+4. Under **Agent Memory**, ensure the ChromaDB status shows 🟢 **Online**. You can choose between the free Local embedding model or OpenAI's embeddings for better multilingual support.
+
+---
+
+## 📂 Project Structure (Monorepo)
+
+```text
 ai-qa-agent/
 ├── packages/
-│   ├── server/          # Backend API
+│   ├── server/               # Core Agent Backend (Bun + Elysia)
 │   │   └── src/
-│   │       ├── index.ts           # Elysia server
-│   │       ├── types.ts           # Shared types
-│   │       ├── db/database.ts     # SQLite storage
-│   │       └── services/
-│   │           ├── ai/            # AI providers
-│   │           │   ├── provider.ts      # Interface
-│   │           │   ├── registry.ts      # Factory
-│   │           │   └── openai.adapter.ts # OpenAI
-│   │           └── test-runner.ts # Playwright engine
-│   └── web/             # Frontend dashboard
-│       └── src/
-│           ├── App.tsx
-│           ├── pages/        # Dashboard, NewTest, Live, Settings
-│           ├── hooks/        # WebSocket hook
-│           └── services/     # API client
-├── examples/            # Sample test cases
-└── package.json         # Workspace root
+│   │       ├── services/
+│   │       │   ├── test-runner.ts     # Playwright engine + execution loop
+│   │       │   ├── memory-manager.ts  # SQLite + ChromaDB memory logic
+│   │       │   ├── visual-verification.ts # Vision assertions
+│   │       │   └── ai/                # LLM Adapters (OpenAI, etc.)
+│   │       ├── routes/       # API Endpoints
+│   │       └── db/           # SQLite Database config
+│   ├── web/                  # Dashboard UI (React + TailwindCSS)
+│   └── demo-app/             # Target application for testing
+├── docs/                     # Architecture & Contribution guides
+├── package.json              # Monorepo root
+└── README.md
 ```
 
-## License
+## 🧠 How the Memory System Works
 
-MIT
+The AI QA Agent uses a dual-layer memory system to balance speed and resilience:
+
+1. **SQLite (The Reflex):** Stores exact matches of step descriptions to selectors, along with element fingerprints (tag names, text content, roles). If a step perfectly matches, the Agent verifies the fingerprint and clicks instantly (<5ms).
+2. **ChromaDB (The Intuition):** If an exact match isn't found, the Agent performs a semantic search. If a conceptually similar step was solved previously in the _same project_, it tries that selector.
+3. **AI Vision/DOM Analyzer (The Brain):** If all memory fails (or the UI changed significantly), the Agent captures the DOM, sends it to the LLM, finds the new selector, and writes it back to memory for next time.
+
+For a deep dive into the architecture, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## 🤝 Contributing
+
+We welcome contributions! Whether you're fixing bugs, adding new AI providers (Anthropic, Gemini), or improving the UI. Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

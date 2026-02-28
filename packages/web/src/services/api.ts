@@ -160,3 +160,37 @@ export function compareVisual(runId: string, testPlanId?: string) {
 export function getVisualDiffUrl(filename: string) {
   return `${API_BASE}/visual/diffs/${filename}`;
 }
+
+// --- Memory ---
+export function getMemoryStats() {
+  return request<{
+    totalMappings: number;
+    healthyMappings: number;
+    staleMappings: number;
+    chromaAvailable: boolean;
+    embeddingProvider: string;
+    embeddingModel: string;
+  }>("/memory/stats");
+}
+
+export function getMemoryMappings(testPlanId?: string) {
+  const query = testPlanId ? `?testPlanId=${testPlanId}` : "";
+  return request<{ mappings: any[] }>(`/memory/mappings${query}`);
+}
+
+export function updateEmbeddingSettings(body: {
+  embeddingProvider: string;
+  embeddingModel?: string;
+}) {
+  return request<{ success: boolean; message: string }>("/memory/settings", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function clearMemory(testPlanId?: string) {
+  const query = testPlanId ? `?testPlanId=${testPlanId}` : "";
+  return request<{ deleted: number; message: string }>(`/memory${query}`, {
+    method: "DELETE",
+  });
+}

@@ -1,5 +1,15 @@
 import { useState, useEffect } from "react";
-import { Key, Bot, Monitor, Save, Check } from "lucide-react";
+import {
+  Key,
+  Bot,
+  Monitor,
+  Save,
+  Check,
+  Brain,
+  Trash2,
+  Database,
+  Zap,
+} from "lucide-react";
 import * as api from "../services/api";
 
 export default function SettingsPage() {
@@ -10,8 +20,19 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Memory state
+  const [memoryStats, setMemoryStats] = useState<any>(null);
+  const [embeddingProvider, setEmbeddingProvider] = useState("default");
+  const [embeddingModel, setEmbeddingModel] = useState(
+    "text-embedding-3-small",
+  );
+  const [savingMemory, setSavingMemory] = useState(false);
+  const [savedMemory, setSavedMemory] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    loadMemoryStats();
   }, []);
 
   async function loadSettings() {
@@ -23,7 +44,6 @@ export default function SettingsPage() {
       setSettings(settingsRes.settings);
       setProviders(providersRes.providers);
 
-      // Pre-fill if API key exists (masked)
       if (settingsRes.settings.openai_api_key) {
         setApiKey(settingsRes.settings.openai_api_key);
       }
@@ -35,15 +55,24 @@ export default function SettingsPage() {
     }
   }
 
+  async function loadMemoryStats() {
+    try {
+      const stats = await api.getMemoryStats();
+      setMemoryStats(stats);
+      setEmbeddingProvider(stats.embeddingProvider || "default");
+      setEmbeddingModel(stats.embeddingModel || "text-embedding-3-small");
+    } catch (e) {
+      console.error("Failed to load memory stats:", e);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
-      // Only save if it's a real key (not masked)
       if (apiKey && !apiKey.includes("...")) {
         await api.saveSetting("openai_api_key", apiKey);
       }
       await api.saveSetting("openai_model", selectedModel);
-
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       loadSettings();
@@ -51,6 +80,42 @@ export default function SettingsPage() {
       alert("Failed to save: " + e.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveMemorySettings() {
+    setSavingMemory(true);
+    try {
+      await api.updateEmbeddingSettings({
+        embeddingProvider,
+        embeddingModel,
+      });
+      setSavedMemory(true);
+      setTimeout(() => setSavedMemory(false), 2000);
+      loadMemoryStats();
+    } catch (e: any) {
+      alert("Failed to save: " + e.message);
+    } finally {
+      setSavingMemory(false);
+    }
+  }
+
+  async function handleClearMemory() {
+    if (
+      !confirm(
+        "Are you sure you want to clear all memory? This cannot be undone.",
+      )
+    )
+      return;
+    setClearing(true);
+    try {
+      const result = await api.clearMemory();
+      alert(result.message);
+      loadMemoryStats();
+    } catch (e: any) {
+      alert("Failed: " + e.message);
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -221,7 +286,7 @@ export default function SettingsPage() {
             >
               <option value="gpt-4o">GPT-4o (Most capable)</option>
               <option value="gpt-4o-mini">
-                GPT-4o Mini (Fast & affordable)
+                GPT-4o Mini (Fast &amp; affordable)
               </option>
               <option value="gpt-4-turbo">GPT-4 Turbo</option>
               <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fastest)</option>
@@ -247,6 +312,267 @@ export default function SettingsPage() {
               <>
                 <Save size={16} />
                 Save Settings
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ===== Agent Memory Section ===== */}
+      <div className="settings-section">
+        <h2 className="settings-section-title">
+          <Brain size={20} />
+          Agent Memory
+        </h2>
+
+        {/* Memory Stats */}
+        {memoryStats && (
+          <div className="card mb-4">
+            <div className="card-title mb-4">
+              <Database size={18} />
+              Memory Statistics
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              {/* Total Mappings */}
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "rgba(99, 102, 241, 0.08)",
+                  borderRadius: "var(--radius-md)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: 800,
+                    color: "var(--accent-primary)",
+                  }}
+                >
+                  {memoryStats.totalMappings}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--text-tertiary)",
+                    marginTop: 2,
+                  }}
+                >
+                  Total Mappings
+                </div>
+              </div>
+
+              {/* Healthy Mappings */}
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "rgba(34,197,94,0.08)",
+                  borderRadius: "var(--radius-md)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: 800,
+                    color: "var(--accent-success)",
+                  }}
+                >
+                  {memoryStats.healthyMappings}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--text-tertiary)",
+                    marginTop: 2,
+                  }}
+                >
+                  Healthy
+                </div>
+              </div>
+
+              {/* Stale Mappings */}
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: "rgba(239,68,68,0.08)",
+                  borderRadius: "var(--radius-md)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: 800,
+                    color: "var(--accent-error)",
+                  }}
+                >
+                  {memoryStats.staleMappings}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--text-tertiary)",
+                    marginTop: 2,
+                  }}
+                >
+                  Stale
+                </div>
+              </div>
+
+              {/* ChromaDB Status */}
+              <div
+                style={{
+                  padding: "12px 16px",
+                  background: memoryStats.chromaAvailable
+                    ? "rgba(34,197,94,0.08)"
+                    : "rgba(100,116,139,0.06)",
+                  borderRadius: "var(--radius-md)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: 800,
+                    color: memoryStats.chromaAvailable
+                      ? "var(--accent-success)"
+                      : "var(--text-tertiary)",
+                  }}
+                >
+                  {memoryStats.chromaAvailable ? "🟢 Online" : "⚪ Offline"}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "var(--text-tertiary)",
+                    marginTop: 2,
+                  }}
+                >
+                  ChromaDB
+                </div>
+              </div>
+            </div>
+
+            <button
+              className="btn btn-ghost"
+              onClick={handleClearMemory}
+              disabled={clearing || memoryStats.totalMappings === 0}
+              style={{ color: "var(--accent-error)", fontSize: "0.82rem" }}
+            >
+              {clearing ? (
+                <>
+                  <div className="spinner" />
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={14} />
+                  Clear All Memory ({memoryStats.totalMappings} entries)
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Embedding Configuration */}
+        <div className="card">
+          <div className="card-title mb-4">
+            <Zap size={18} />
+            Embedding Configuration
+          </div>
+
+          <div
+            style={{
+              fontSize: "0.82rem",
+              color: "var(--text-secondary)",
+              marginBottom: 16,
+              lineHeight: 1.6,
+              padding: "10px 14px",
+              background: "rgba(99, 102, 241, 0.06)",
+              borderRadius: "var(--radius-md)",
+              borderLeft: "3px solid var(--accent-primary)",
+            }}
+          >
+            Embedding controls how the agent understands the{" "}
+            <strong>meaning</strong> of test steps.{" "}
+            <strong>Default (Local)</strong> is free and runs offline.{" "}
+            <strong>OpenAI</strong> provides better multilingual support and
+            semantic accuracy.
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Embedding Provider</label>
+            <select
+              className="input"
+              value={embeddingProvider}
+              onChange={(e) => setEmbeddingProvider(e.target.value)}
+            >
+              <option value="default">
+                🖥️ Default (Local) — Free, offline, good for English
+              </option>
+              <option value="openai">
+                🌐 OpenAI — Paid, best accuracy, multilingual
+              </option>
+            </select>
+          </div>
+
+          {embeddingProvider === "openai" && (
+            <div className="input-group">
+              <label className="input-label">Embedding Model</label>
+              <select
+                className="input"
+                value={embeddingModel}
+                onChange={(e) => setEmbeddingModel(e.target.value)}
+              >
+                <option value="text-embedding-3-small">
+                  text-embedding-3-small (Fast, $0.02/1M tokens)
+                </option>
+                <option value="text-embedding-3-large">
+                  text-embedding-3-large (Best, $0.13/1M tokens)
+                </option>
+                <option value="text-embedding-ada-002">
+                  text-embedding-ada-002 (Legacy)
+                </option>
+              </select>
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: "var(--text-tertiary)",
+                  marginTop: 4,
+                }}
+              >
+                Uses the same OpenAI API key configured above
+              </div>
+            </div>
+          )}
+
+          <button
+            className={`btn ${savedMemory ? "btn-success" : "btn-primary"}`}
+            onClick={handleSaveMemorySettings}
+            disabled={savingMemory}
+          >
+            {savingMemory ? (
+              <>
+                <div className="spinner" />
+                Saving...
+              </>
+            ) : savedMemory ? (
+              <>
+                <Check size={16} />
+                Saved!
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Save Embedding Settings
               </>
             )}
           </button>

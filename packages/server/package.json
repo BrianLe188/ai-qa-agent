@@ -7,9 +7,12 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
+    "@chroma-core/default-embed": "^0.1.9",
+    "@chroma-core/openai": "^0.1.9",
     "@elysiajs/cors": "^1.2.0",
     "@elysiajs/static": "^1.2.0",
     "@sinclair/typebox": "^0.34.48",
+    "chromadb": "^3.3.1",
     "elysia": "^1.2.0",
     "nanoid": "^5.1.0",
     "openai": "^4.80.0",
