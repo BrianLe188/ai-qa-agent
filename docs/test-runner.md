@@ -1,0 +1,43 @@
+# 🏃‍♂️ Cognitive Test Runner
+
+**Location:** `server/src/services/test-runner.ts`
+
+The execution engine uses Microsoft Playwright to interface with the browser. Instead of accepting hardcoded selectors (e.g., `#submit-btn`), the Test Runner executes test scripts written entirely in **natural language steps** (e.g., "Click the Submit button").
+
+## The Execution Loop: Fast Path vs. Slow Path
+
+Every single step evaluated runs through the Agent's decision loop, ensuring speed without fragility.
+
+### 1. Memory Recall (SQLite + ChromaDB)
+
+The internal AI Agent begins by consulting its memory.
+
+- **Exact Matches:** The Agent first asks the SQLite database: _"Have I successfully completed the step 'Click the submit button' in this specific Test Plan before?"_
+- **Semantic Similarity:** If the exact test string is not found, the Agent queries ChromaDB: _"Have I completed a step that is semantically similar to this?"_
+- **Strict Isolation:** The `testPlanId` is rigidly enforced. Memory learned across different projects or distinct applications is completely isolated. This prevents false positives, collisions, or hallucinated UI components.
+
+### 2. The Fast Path (Instant Execution)
+
+If a cached selector is successfully retrieved from memory, the Agent performs a critical **Fingerprint Sanity Check**.
+
+- The cached footprint contains key metadata about the HTML element from its previous successful interaction (e.g., Tag Name: `button`, Text Content: `Submit`, Aria-label, and structural uniqueness).
+- The Agent quickly queries the provided selector on the _current_ UI. If the element found matches the historical fingerprint, the Agent instantly executes the action via Playwright (click, fill, hover...etc).
+- **Result:** No AI API calls are necessary. Execution overhead drops to `<5 milliseconds`.
+
+### 3. The Slow Path (Self-Healing & UI Adaptation)
+
+If no cached selector exists (e.g., running the step for the first time), OR if the Fingerprint Sanity Check fails (meaning the UI layout or button properties have changed), the Agent seamlessly falls back to the **Slow Path**.
+
+- The Agent halts and captures an **Accessibility-focused DOM snapshot**. This snapshot is stripped of noise, keeping only interactive elements, texts, relationships, and coordinates.
+- It formulates a highly precise prompt combining: the DOM snapshot, the current Page URL, and the user's Natural Language Step.
+- It dispatches this context to the active LLM (e.g., OpenAI `gpt-4o-mini`).
+- The LLM reasons about the visual layout mathematically and returns an explicit, optimized CSS selector that safely targets the correct intended element.
+- The Playwright agent tests the selector and executes the action.
+
+### 4. Memory Retention (Learning & Solidification)
+
+Post-execution, whenever the Slow Path succeeds, the Agent does not simply forget what it just deduced.
+
+- It extracts the _newly discovered_ UI element's fingerprint.
+- It caches this new fingerprint, selector, and exact step text back into both its SQLite and ChromaDB memory storages.
+- **Result:** The next time the test sequence is run on this page, the Agent exclusively shifts back to using the Fast Path, running without human intervention.
