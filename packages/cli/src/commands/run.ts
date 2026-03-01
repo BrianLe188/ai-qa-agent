@@ -3,17 +3,18 @@
 // ============================================================
 import {
   MemoryManager,
+  ProviderRegistry,
   runTests,
   saveReport,
   type RunnerConfig,
 } from "@ai-qa-agent/core";
 import chalk from "chalk";
 import type { Command } from "commander";
-import { existsSync } from "fs";
+import { existsSync, readFileSync, statSync, readdirSync } from "fs";
 import { nanoid } from "nanoid";
-import { resolve } from "path";
+import ora from "ora";
+import { resolve, join } from "path";
 import { createLocalDatabase } from "@ai-qa-agent/core";
-import { loadTestCases } from "../parser";
 import { createConsoleReporter, createJsonReporter } from "../reporter";
 
 export function registerRunCommand(program: Command) {
@@ -94,10 +95,68 @@ async function runAction(inputPath: string | undefined, options: any) {
       throw new Error(`Path not found: ${fullPath}`);
     }
 
-    // Load and parse test cases
-    const parsed = loadTestCases(fullPath);
-    testCases = parsed.testCases;
-    filesCount = parsed.files.length;
+    // Read document content (file or directory)
+    let documentContent = "";
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) {
+      const files = readdirSync(fullPath).filter((f) =>
+        /\.(md|txt|markdown)$/i.test(f),
+      );
+      filesCount = files.length;
+      documentContent = files
+        .map((f) => readFileSync(join(fullPath, f), "utf-8"))
+        .join("\n\n");
+    } else {
+      filesCount = 1;
+      documentContent = readFileSync(fullPath, "utf-8");
+    }
+
+    if (!documentContent.trim()) {
+      throw new Error("Document is empty. No content to parse.");
+    }
+
+    // Use AI to parse test cases from document (same as server)
+    const spinner = ora({
+      text: chalk.yellow("AI is parsing test cases from document..."),
+      spinner: "dots12",
+      color: "yellow",
+    });
+    if (options.format !== "json") spinner.start();
+    try {
+      const ai = ProviderRegistry.getActive();
+      testCases = await ai.parseTestCases(documentContent, {
+        targetUrl: options.url,
+      });
+      if (options.format !== "json")
+        spinner.succeed(
+          chalk.green(
+            `AI parsed ${testCases.length} test case(s) from ${filesCount} file(s)`,
+          ),
+        );
+    } catch (err: any) {
+      spinner.fail(chalk.red(`AI parsing failed: ${err.message}`));
+      throw err;
+    }
+
+    // Save parsed test cases as a test plan in the database (same as parse command)
+    const fileName = fullPath.split("/").pop() || "unknown";
+    planName = options.name || fileName;
+    testPlanId = nanoid(10);
+    localDb.saveTestPlan({
+      id: testPlanId,
+      name: planName,
+      targetUrl: options.url,
+      testCases,
+      documentSource: fileName,
+    });
+
+    if (options.format !== "json") {
+      console.log(
+        chalk.gray(
+          `  💾 Saved as test plan ${chalk.cyan(testPlanId)} — reuse with: ai-qa run --plan ${testPlanId}`,
+        ),
+      );
+    }
   }
 
   if (!testCases || testCases.length === 0) {

@@ -6,6 +6,7 @@ import chalk from "chalk";
 import type { Command } from "commander";
 import { existsSync, readFileSync } from "fs";
 import { nanoid } from "nanoid";
+import ora from "ora";
 import { basename, resolve } from "path";
 import * as readLine from "readline/promises";
 import { createLocalDatabase } from "@ai-qa-agent/core";
@@ -60,17 +61,19 @@ async function parseAction(inputPath: string, options: any) {
   console.log(chalk.gray("─".repeat(50)));
 
   // Step 1: AI parses test cases from document (same as server)
-  console.log(
-    chalk.yellow("\n🤖 Step 1: AI is parsing test cases from document..."),
-  );
+  const parseSpinner = ora({
+    text: "Step 1: AI is parsing test cases from document...",
+    spinner: "dots12",
+    color: "yellow",
+  }).start();
   const ai = ProviderRegistry.getActive();
   const parsedCases = await ai.parseTestCases(document, {
     targetUrl: options.url,
   });
-
-  console.log(
-    chalk.green(`✅ AI parsed ${parsedCases.length} test case(s):\n`),
+  parseSpinner.succeed(
+    chalk.green(`AI parsed ${parsedCases.length} test case(s)`),
   );
+  console.log();
   printTestCases(parsedCases);
 
   // Step 2: Optionally generate additional test cases (same as server)
@@ -87,25 +90,28 @@ async function parseAction(inputPath: string, options: any) {
     );
 
     if (answer.toLowerCase() !== "n" && answer.toLowerCase() !== "no") {
-      console.log(
-        chalk.yellow("\n🤖 Step 2: AI is generating additional test cases..."),
-      );
+      const genSpinner = ora({
+        text: "Step 2: AI is generating additional test cases...",
+        spinner: "dots12",
+        color: "yellow",
+      }).start();
       try {
         const additionalCases = await ai.generateTestCases({
           targetUrl: options.url,
           existingTestCases: parsedCases,
         });
         allCases = [...parsedCases, ...additionalCases];
-        console.log(
+        genSpinner.succeed(
           chalk.green(
-            `✅ AI generated ${additionalCases.length} additional test case(s):\n`,
+            `AI generated ${additionalCases.length} additional test case(s)`,
           ),
         );
+        console.log();
         printTestCases(additionalCases, "NEW");
       } catch (e: any) {
-        console.log(
+        genSpinner.warn(
           chalk.yellow(
-            `⚠ Failed to generate additional test cases: ${e.message}`,
+            `Failed to generate additional test cases: ${e.message}`,
           ),
         );
       }

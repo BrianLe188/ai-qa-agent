@@ -6,6 +6,7 @@ import {
 } from "@ai-qa-agent/core";
 import chalk from "chalk";
 import type { Command } from "commander";
+import ora from "ora";
 import { resolve } from "path";
 import { createLocalDatabase } from "@ai-qa-agent/core";
 import { createConsoleReporter, createJsonReporter } from "../reporter";
@@ -43,13 +44,24 @@ async function rerunAction(runId: string, options: any) {
   const projectDir = resolve(options.output || ".");
   const localDb = createLocalDatabase(projectDir);
 
+  const loadSpinner = ora({
+    text: `Loading test run ${chalk.cyan(runId)}...`,
+    spinner: "dots12",
+    color: "yellow",
+  });
+  if (options.format !== "json") loadSpinner.start();
+
   const existingRun = localDb.getTestRun(runId);
   if (!existingRun) {
+    loadSpinner.fail(chalk.red(`Test run with ID '${runId}' not found.`));
     throw new Error(`Test run with ID '${runId}' not found.`);
   }
 
   const plan = localDb.getTestPlan(existingRun.testPlanId);
   if (!plan) {
+    loadSpinner.fail(
+      chalk.red(`Associated test plan '${existingRun.testPlanId}' not found.`),
+    );
     throw new Error(
       `Associated test plan '${existingRun.testPlanId}' not found.`,
     );
@@ -65,8 +77,14 @@ async function rerunAction(runId: string, options: any) {
     skipped: 0,
     error: 0,
   };
-  // existingRun.startedAt = we keep it or reset it, core will overwrite it if we just pass existingRun or don't.
   localDb.saveTestRun(existingRun);
+
+  if (options.format !== "json")
+    loadSpinner.succeed(
+      chalk.green(
+        `Loaded run ${chalk.cyan(runId)} — plan '${plan.name}' (${plan.testCases.length} tests)`,
+      ),
+    );
 
   // Setup memory manager
   const memory = new MemoryManager({
