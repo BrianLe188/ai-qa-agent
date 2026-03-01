@@ -1,0 +1,25 @@
+{
+  "name": "@ai-qa-agent/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "ai-qa": "src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --compile --outfile ai-qa --external playwright --external playwright-core"
+  },
+  "dependencies": {
+    "@ai-qa-agent/core": "workspace:*",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "nanoid": "^5.1.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.7.0"
+  }
+}

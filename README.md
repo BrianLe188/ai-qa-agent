@@ -14,14 +14,16 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
 ## ✨ Key Features
 
 - **🗣️ Natural Language Tests:** Write test steps like "Click the Login button" or "Type password". No coding required.
+- **📝 Markdown Test Cases:** Write your test cases in standard Markdown format. The Agent parses them and executes them directly.
+- **🖥️ Powerful CLI:** Run tests directly from your terminal using the built-in CLI, perfect for CI/CD pipelines.
 - **🧠 Self-Healing Memory (Fast Path vs. Slow Path):**
   - _Slow Path:_ The AI analyzes the DOM to find the correct element for a step.
   - _Fast Path:_ The Agent remembers (via SQLite + ChromaDB) the exact selector and "element fingerprint". On subsequent runs, it executes instantly without calling the AI API.
   - _Self-Healing:_ If a UI change breaks the cached selector, the Agent instantly detects the fingerprint mismatch and falls back to the AI (Slow Path) to learn the new layout.
-- **🛡️ Strict Isolation:** Memory and selectors are isolated by `testPlanId` to prevent cross-project pollution.
-- **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states (e.g., "Is the chart showing an upward trend?").
-- **⚡ Insanely Fast Backend:** Built on top of **Bun** and **ElysiaJS**.
-- **🌐 Local Vector DB (ChromaDB):** Semantically matches test steps to reuse learned behaviors. Optional OpenAI embedding support for multilingual testing.
+- **🛡️ Strict Isolation:** Memory and selectors are isolated per project in the `.ai-qa/` directory.
+- **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states.
+- **⚡ Insanely Fast Backend:** Built on top of **Bun**, **ElysiaJS**, and a unified **Core Engine**.
+- **🌐 Shared Data Directory:** Both the Server Dashboard and CLI share the same `.ai-qa/` directory, meaning memory learned in the CLI is instantly available in the UI, and vice versa.
 
 ---
 
@@ -45,6 +47,10 @@ bun install
 
 # Install Playwright browser binaries
 bunx playwright install chromium
+
+# (Optional but recommended) Make the CLI available globally as `ai-qa`
+cd packages/cli && npm link
+cd ../..
 ```
 
 ### 2. Start ChromaDB (Vector Database)
@@ -56,16 +62,16 @@ The agent uses ChromaDB to store semantic memories of test steps.
 docker run -d -p 8000:8000 chromadb/chroma
 ```
 
-### 3. Start the Development Servers
+### 3. Start the Development Servers (UI Mode)
 
 ```bash
-# Start the Backend Server (Elysia + SQLite) -> http://localhost:3100
+# Start the Backend Server (Elysia) -> http://localhost:3100
 bun run dev:server
 
 # Start the Frontend Dashboard (Vite + React) -> http://localhost:5173
 bun run dev:web
 
-# (Optional) Start the Demo E-commerce App to run tests against -> http://localhost:3000
+# (Optional) Start the Demo targets -> http://localhost:4000
 bun run dev:demo
 ```
 
@@ -73,8 +79,139 @@ bun run dev:demo
 
 1. Open your browser to **http://localhost:5173**.
 2. Navigate to the **Settings** page.
-3. Enter your **OpenAI API Key** and select your preferred model (e.g., `gpt-4o-mini`).
-4. Under **Agent Memory**, ensure the ChromaDB status shows 🟢 **Online**. You can choose between the free Local embedding model or OpenAI's embeddings for better multilingual support.
+3. Enter your **OpenAI API Key** and select your preferred model.
+4. Under **Agent Memory**, ensure the ChromaDB status shows 🟢 **Online**.
+
+---
+
+## 🖥️ Using the CLI
+
+You can write tests in Markdown and run them directly from your terminal!
+
+### 1. Create a Markdown Test (`examples/login-tests.md`)
+
+```markdown
+## TC-001: Login with valid credentials
+
+**Priority:** High
+
+**Steps:**
+
+1. Navigate to /
+2. Enter "user@example.com" into the email field
+3. Enter "Password123!" into the password field
+4. Click the Sign In button
+
+**Expected:** User should be redirected to the dashboard
+```
+
+### 2. Run the CLI
+
+```bash
+# Set your API key
+export OPENAI_API_KEY="sk-..."
+
+# Run the test against your local app
+ai-qa run examples/login-tests.md --url http://localhost:4000 --headed
+
+# Alternatively, run an existing test plan from the database without a markdown file
+ai-qa run --plan cli-1a2b3c
+```
+
+The CLI will execute the test, use the Self-Healing Memory to speed up execution, and generate an HTML report in the `.ai-qa/reports/` directory.
+
+### CLI Arguments & Flags
+
+**Command:** `ai-qa run <path>`
+
+| Argument / Flag         | Description                                                      | Default       |
+| ----------------------- | ---------------------------------------------------------------- | ------------- |
+| `[path]`                | Path to the test case `.md` file (optional if using `--plan`)    | —             |
+| `-t, --plan <planId>`   | Run an existing test plan from the database by ID                | —             |
+| `-u, --url <url>`       | Base URL of the application under test (required if no `--plan`) | —             |
+| `-k, --api-key <key>`   | OpenAI API key (or set `OPENAI_API_KEY` env)                     | —             |
+| `-m, --model <model>`   | AI model to use                                                  | `gpt-4o-mini` |
+| `-p, --provider <name>` | AI provider string identifier                                    | `openai`      |
+| `--headed`              | Run browser in headed mode (visible UI)                          | `false`       |
+| `--headless`            | Run browser in headless mode                                     | `true`        |
+| `--slow-mo <ms>`        | Slow down browser actions by specified milliseconds              | `100`         |
+| `--timeout <ms>`        | Timeout per action in milliseconds                               | `30000`       |
+| `-f, --format <format>` | Output format: `console` or `json`                               | `console`     |
+| `-o, --output <dir>`    | Output directory for reports                                     | `.`           |
+| `-v, --verbose`         | Show detailed logs in the console                                | `false`       |
+| `-q, --quiet`           | Minimal console output                                           | `false`       |
+| `--no-memory`           | Disable the self-healing memory feature (force AI path)          | —             |
+| `--no-report`           | Skip HTML report generation                                      | —             |
+
+### 3. Parse Document & Create Test Plan (AI-Powered)
+
+The `parse` command uses AI to read any document (Markdown, text, etc.), extract structured test cases, optionally generate additional ones, and save the result as a **Test Plan** in the shared `.ai-qa/` database — the exact same flow as the Server Dashboard.
+
+**Command:** `ai-qa parse <path>`
+
+| Argument / Flag       | Description                                  | Default       |
+| --------------------- | -------------------------------------------- | ------------- |
+| `<path>`              | Path to document file (required)             | —             |
+| `-u, --url <url>`     | Target URL of the app under test (required)  | —             |
+| `-n, --name <name>`   | Name for the test plan                       | filename      |
+| `-k, --api-key <key>` | OpenAI API key (or set `OPENAI_API_KEY` env) | —             |
+| `-m, --model <model>` | AI model to use                              | `gpt-4o-mini` |
+| `--no-generate`       | Skip AI generation of additional test cases  | —             |
+| `-d, --dir <dir>`     | Project directory for `.ai-qa/` storage      | `.`           |
+
+```bash
+# Parse a document and create a test plan
+ai-qa parse examples/login-tests.md --url http://localhost:4000
+```
+
+### 4. List Saved Test Plans
+
+View all test plans that have been created via `parse` (or the Server Dashboard).
+
+> [!NOTE]
+> The `ai-qa` command looks for the `.ai-qa/` database directory within your current working directory. To access your project's test plans and memory, ensure you run these commands from the **root of your project**.
+
+```bash
+ai-qa plans
+```
+
+### 5. Manage Self-Healing Memory
+
+The memory caching layer can be inspected or cleared directly from the CLI.
+
+**Command:** `ai-qa memory [options]`
+
+| Option            | Description                                           |
+| ----------------- | ----------------------------------------------------- |
+| `--stats`         | Show memory usage statistics (healthy/stale mappings) |
+| `--clear`         | Clear the self-healing memory and cached selectors    |
+| `-d, --dir <dir>` | Specify the project directory                         |
+
+```bash
+ai-qa memory --stats
+```
+
+### 6. Rerun a Previous Test Run
+
+If a test run failed (or you just want to run it again quickly), you can rerun it by its ID. This preserves the historical run ID but refreshes the results and uses the cached Test Plan details.
+
+```bash
+ai-qa rerun <runId>
+```
+
+### 7. Building a Standalone Executable
+
+You can compile the CLI into a **single, standalone binary** that doesn't require Bun to run!
+
+```bash
+# From the project root, build the CLI executable
+bun run build:cli
+
+# The binary will be output to packages/cli/ai-qa
+./packages/cli/ai-qa run --plan cli-12345
+```
+
+_(Note: Target machines still need a local `node_modules` with `playwright` installed to launch the browser)._
 
 ---
 
@@ -82,18 +219,25 @@ bun run dev:demo
 
 ```text
 ai-qa-agent/
+├── .ai-qa/                   # Shared data directory (Memory DB, Screenshots, Reports)
 ├── packages/
-│   ├── server/               # Core Agent Backend (Bun + Elysia)
+│   ├── core/                 # Shared Core Engine (Test Runner, Memory, Providers)
+│   ├── cli/                  # Terminal Interface
 │   │   └── src/
-│   │       ├── services/
-│   │       │   ├── test-runner.ts     # Playwright engine + execution loop
-│   │       │   ├── memory-manager.ts  # SQLite + ChromaDB memory logic
-│   │       │   ├── visual-verification.ts # Vision assertions
-│   │       │   └── ai/                # LLM Adapters (OpenAI, etc.)
-│   │       ├── routes/       # API Endpoints
-│   │       └── db/           # SQLite Database config
+│   │       ├── index.ts      # Entry point — program setup, preAction hook, command registration
+│   │       ├── commands/     # Each CLI command in its own file
+│   │       │   ├── run.ts    # `ai-qa run` — execute test cases
+│   │       │   ├── parse.ts  # `ai-qa parse` — AI parse + generate + save plan
+│   │       │   ├── plans.ts  # `ai-qa plans` — list saved test plans
+│   │       │   └── memory.ts # `ai-qa memory` — manage self-healing memory
+│   │       ├── database.ts   # SQLite adapter (shared .ai-qa/ with server)
+│   │       ├── parser.ts     # Markdown test case parser
+│   │       ├── reporter.ts   # Console & JSON reporters
+│   │       └── utils.ts      # Shared helpers (printTestCases, etc.)
+│   ├── server/               # Dashboard API Backend (Wraps core for WebSocket/HTTP)
 │   ├── web/                  # Dashboard UI (React + TailwindCSS)
 │   └── demo-app/             # Target application for testing
+├── examples/                 # Example Markdown test files
 ├── docs/                     # Architecture & Contribution guides
 ├── package.json              # Monorepo root
 └── README.md

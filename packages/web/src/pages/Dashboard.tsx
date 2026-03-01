@@ -235,6 +235,22 @@ export default function Dashboard() {
                         : ""}
                     </div>
                   </div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      api
+                        .rerunTestRun(run.id)
+                        .then(() => {
+                          navigate(`/run/${run.id}`);
+                        })
+                        .catch((err) => alert(err.message));
+                    }}
+                    title="Rerun this exact test run"
+                  >
+                    <Play size={14} />
+                    Rerun
+                  </button>
                 </div>
               );
             })}

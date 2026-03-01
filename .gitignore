@@ -1,6 +1,11 @@
 node_modules
-screenshots
-reports
-diffs
-baselines
-chroma
+
+# Shared data directory (server + CLI)
+.ai-qa
+
+# Legacy data directory
+packages/server/data
+
+# Compiled binaries
+ai-qa
+dist

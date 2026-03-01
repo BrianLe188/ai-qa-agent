@@ -160,4 +160,71 @@ export const testRunRoutes = new Elysia({ prefix: "/test-runs" })
         ),
       }),
     },
-  );
+  )
+
+  // --- Rerun an existing test run ---
+  .post("/:id/rerun", async ({ params, body }) => {
+    const run = getTestRun(params.id);
+    if (!run) {
+      throw new Error("Test run not found");
+    }
+
+    const plan = getTestPlan(run.testPlanId);
+    if (!plan) {
+      throw new Error("Associated test plan not found");
+    }
+
+    if (activeRuns.has(run.id)) {
+      throw new Error("Test run is already running");
+    }
+
+    const runControl = { abort: false };
+    activeRuns.set(run.id, runControl);
+
+    // Reset the test run record
+    run.status = "running";
+    run.results = [];
+    run.summary = {
+      total: plan.testCases.filter((tc: TestCase) => tc.enabled).length,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      error: 0,
+    };
+    run.startedAt = new Date().toISOString();
+    run.completedAt = undefined;
+    run.durationMs = undefined;
+
+    saveTestRun(run);
+
+    // Start test execution in background
+    runTests(
+      plan.id,
+      run.id,
+      plan.testCases,
+      plan.targetUrl,
+      (body as any)?.options || {},
+      broadcast,
+      run, // Pass existingRun to preserve its original started date if we wanted, but we just reset it above, which is fine.
+    )
+      .then((completedRun) => {
+        saveTestRun({
+          id: completedRun.id,
+          testPlanId: completedRun.testPlanId,
+          status: completedRun.status,
+          targetUrl: completedRun.targetUrl,
+          results: completedRun.results,
+          summary: completedRun.summary,
+          startedAt: completedRun.startedAt,
+          completedAt: completedRun.completedAt,
+          durationMs: completedRun.durationMs,
+        });
+        activeRuns.delete(run.id);
+      })
+      .catch((error) => {
+        console.error("Test run failed:", error);
+        activeRuns.delete(run.id);
+      });
+
+    return { runId: run.id, status: "rerun_started" };
+  });

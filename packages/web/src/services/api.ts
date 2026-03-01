@@ -105,6 +105,16 @@ export function startTestRun(body: {
   });
 }
 
+export function rerunTestRun(
+  id: string,
+  options?: { headless?: boolean; slowMo?: number; timeout?: number },
+) {
+  return request<{ runId: string; status: string }>(`/test-runs/${id}/rerun`, {
+    method: "POST",
+    body: JSON.stringify({ options }),
+  });
+}
+
 // --- Pause / Resume ---
 export function pauseTestRun(runId: string) {
   return request<{ success: boolean; isPaused: boolean }>(

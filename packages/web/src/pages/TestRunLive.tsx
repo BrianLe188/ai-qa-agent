@@ -306,6 +306,32 @@ export default function TestRunLive({ events, clearEvents }: Props) {
               Visual Compare
             </button>
 
+            <button
+              className="btn btn-primary"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.82rem",
+                padding: "6px 14px",
+                marginLeft: "auto",
+              }}
+              onClick={() => {
+                if (!runId) return;
+                api
+                  .rerunTestRun(runId)
+                  .then(() => {
+                    setLogs([]);
+                    setTestRun(null); // Will trigger reload inside or just let websocket fill it
+                    window.location.reload(); // Simple way to cleanly reset UI state
+                  })
+                  .catch((err) => alert("Failed to rerun: " + err.message));
+              }}
+            >
+              <Play size={14} />
+              Rerun Tests
+            </button>
+
             {baselineMsg && (
               <span
                 style={{

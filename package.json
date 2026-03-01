@@ -8,7 +8,13 @@
     "dev": "bun run --filter '*' dev",
     "dev:server": "bun run --filter server dev",
     "dev:web": "bun run --filter web dev",
-    "dev:demo": "bun run --filter demo-app dev"
+    "dev:demo": "bun run --filter demo-app dev",
+    "ai-qa": "bun run packages/cli/src/index.ts",
+    "build": "bun run --filter '*' build",
+    "build:core": "bun run --filter @ai-qa-agent/core build",
+    "build:server": "bun run --filter server build",
+    "build:cli": "bun run --filter @ai-qa-agent/cli build",
+    "build:web": "bun run --filter web build"
   },
   "devDependencies": {
     "@types/bun": "^1.3.9"
