@@ -39,11 +39,11 @@ export default function Workflow() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-20">
           <h2 className="text-3xl md:text-5xl font-display font-bold mb-6">
-            How It Works
+            Web Dashboard Experience
           </h2>
           <p className="text-white/60 text-lg max-w-2xl mx-auto">
-            A seamless workflow from natural language requirements to robust,
-            self-healing test execution.
+            A seamless visual workflow from natural language requirements to
+            robust, self-healing test execution.
           </p>
         </div>
 

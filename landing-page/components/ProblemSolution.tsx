@@ -52,15 +52,21 @@ export default function ProblemSolution() {
               The Solution
             </h3>
             <p className="text-white/70 text-lg leading-relaxed mb-6 flex-grow">
-              <strong>Cognitive Test Runner.</strong> Instead of hardcoding, our
-              Agent understands your intent and dynamically finds elements based
-              on semantics.
+              <strong>Cognitive Test Runner.</strong> Instead of hardcoding
+              selectors in code, you just write your intent in plain Markdown.
+              Our Agent parses it and dynamically finds elements by semantics.
             </p>
-            <div className="font-mono text-sm bg-black/50 p-4 rounded-xl border border-neon-green/20 text-neon-green">
-              <div>await agent.act(&apos;Click the Sign Up button&apos;);</div>
-              <div className="mt-2 text-neon-green/70 flex items-center gap-2">
-                <ArrowRight className="w-4 h-4" /> Found element by semantic
-                meaning
+            <div className="font-mono text-sm bg-black/50 p-4 rounded-xl border border-neon-green/20 text-white text-left">
+              <div className="text-white/50 mb-2"># login-tests.md</div>
+              <div className="text-neon-green/90">
+                - Click the &quot;Sign Up&quot; button
+              </div>
+              <div className="text-neon-green/90">
+                - Fill &quot;email&quot; with &quot;user@mail.com&quot;
+              </div>
+              <div className="mt-3 text-neon-green/60 text-xs italic flex items-center gap-2">
+                <ArrowRight className="w-3 h-3" /> Agent automatically
+                translates to Code
               </div>
             </div>
           </motion.div>
