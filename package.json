@@ -17,6 +17,7 @@
     "build:web": "bun run --filter web build"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@types/bun": "^1.3.9"
   }
 }

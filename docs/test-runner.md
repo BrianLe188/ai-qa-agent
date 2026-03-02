@@ -42,3 +42,14 @@ Post-execution, whenever the Slow Path succeeds, the Agent does not simply forge
 - It caches this new fingerprint, selector, and exact step text back into both its SQLite and ChromaDB memory storages.
 - **Result:** The next time the test sequence is run on this page, the Agent exclusively shifts back to using the Fast Path, running without human intervention.
 - **Note on High-Level Steps:** If a step was decomposed into multiple actions (N>1, e.g., "Login with admin"), it is **not cached**. High-level steps depend on the fresh page context of each run to generate the correct sequence of actions safely.
+
+### 5. The HITL Path (Human-in-the-Loop)
+
+Sometimes, user interfaces are too ambiguous, or elements are hidden beneath complex shadow DOMs that even the **Slow Path (AI Agent)** struggles to understand. When the AI fails to find the right action, it will typically throw an error. However, when the `--hitl` flag is enabled (and running in `--headed` mode):
+
+- The Agent pauses the test execution instead of immediately failing.
+- It intercepts the browser, injecting an interactive **User Action Required** overlay that explicitly states which step it cannot resolve.
+- **User Intervention:** The developer executing the test can manually hover over the necessary element (which highlights it in amber) and either click or type into it.
+- **Learning & Solidification:** The `test-runner` captures the exact JavaScript event, generates a robust CSS selector for the chosen element, and feeds this data directly into the **Memory Retention** cycle.
+
+Because the action was learned and solidified in Memory, all subsequent runs of this Test Plan (even when executed in strict `--headless` CI/CD modes where HITL is unavailable) will autonomously execute using the cached selector via the **Fast Path**.

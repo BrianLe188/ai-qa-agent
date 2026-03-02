@@ -20,6 +20,7 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
   - _Slow Path:_ The AI analyzes the DOM to find the correct element for a step.
   - _Fast Path:_ The Agent remembers (via SQLite + ChromaDB) the exact selector and "element fingerprint". On subsequent runs, it executes instantly without calling the AI API.
   - _Self-Healing:_ If a UI change breaks the cached selector, the Agent instantly detects the fingerprint mismatch and falls back to the AI (Slow Path) to learn the new layout.
+- **🖐️ Human-in-the-Loop (HITL):** When enabled, if the AI agent gets completely stuck on a step, it will pause the browser and show an interactive overlay asking for your help. Click or type on the page to teach the agent, and it will save your actions to memory for all future runs!
 - **🛡️ Strict Isolation:** Memory and selectors are isolated per project in the `.ai-qa/` directory.
 - **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states.
 - **⚡ Insanely Fast Backend:** Built on top of **Bun**, **ElysiaJS**, and a unified **Core Engine**.
@@ -124,24 +125,25 @@ The CLI will execute the test, use the Self-Healing Memory to speed up execution
 
 **Command:** `ai-qa run <path>`
 
-| Argument / Flag         | Description                                                      | Default       |
-| ----------------------- | ---------------------------------------------------------------- | ------------- |
-| `[path]`                | Path to the test case `.md` file (optional if using `--plan`)    | —             |
-| `-t, --plan <planId>`   | Run an existing test plan from the database by ID                | —             |
-| `-u, --url <url>`       | Base URL of the application under test (required if no `--plan`) | —             |
-| `-k, --api-key <key>`   | OpenAI API key (or set `OPENAI_API_KEY` env)                     | —             |
-| `-m, --model <model>`   | AI model to use                                                  | `gpt-4o-mini` |
-| `-p, --provider <name>` | AI provider string identifier                                    | `openai`      |
-| `--headed`              | Run browser in headed mode (visible UI)                          | `false`       |
-| `--headless`            | Run browser in headless mode                                     | `true`        |
-| `--slow-mo <ms>`        | Slow down browser actions by specified milliseconds              | `100`         |
-| `--timeout <ms>`        | Timeout per action in milliseconds                               | `30000`       |
-| `-f, --format <format>` | Output format: `console` or `json`                               | `console`     |
-| `-o, --output <dir>`    | Output directory for reports                                     | `.`           |
-| `-v, --verbose`         | Show detailed logs in the console                                | `false`       |
-| `-q, --quiet`           | Minimal console output                                           | `false`       |
-| `--no-memory`           | Disable the self-healing memory feature (force AI path)          | —             |
-| `--no-report`           | Skip HTML report generation                                      | —             |
+| Argument / Flag         | Description                                                         | Default       |
+| ----------------------- | ------------------------------------------------------------------- | ------------- |
+| `[path]`                | Path to the test case `.md` file (optional if using `--plan`)       | —             |
+| `-t, --plan <planId>`   | Run an existing test plan from the database by ID                   | —             |
+| `-u, --url <url>`       | Base URL of the application under test (required if no `--plan`)    | —             |
+| `-k, --api-key <key>`   | OpenAI API key (or set `OPENAI_API_KEY` env)                        | —             |
+| `-m, --model <model>`   | AI model to use                                                     | `gpt-4o-mini` |
+| `-p, --provider <name>` | AI provider string identifier                                       | `openai`      |
+| `--headed`              | Run browser in headed mode (visible UI)                             | `false`       |
+| `--headless`            | Run browser in headless mode                                        | `true`        |
+| `--hitl`                | Enable Human-in-the-Loop mode if AI is stuck (requires headed mode) | `false`       |
+| `--slow-mo <ms>`        | Slow down browser actions by specified milliseconds                 | `100`         |
+| `--timeout <ms>`        | Timeout per action in milliseconds                                  | `30000`       |
+| `-f, --format <format>` | Output format: `console` or `json`                                  | `console`     |
+| `-o, --output <dir>`    | Output directory for reports                                        | `.`           |
+| `-v, --verbose`         | Show detailed logs in the console                                   | `false`       |
+| `-q, --quiet`           | Minimal console output                                              | `false`       |
+| `--no-memory`           | Disable the self-healing memory feature (force AI path)             | —             |
+| `--no-report`           | Skip HTML report generation                                         | —             |
 
 ### 3. Parse Document & Create Test Plan (AI-Powered)
 

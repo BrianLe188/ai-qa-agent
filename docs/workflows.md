@@ -64,6 +64,11 @@ flowchart TD
     IsSingleAction -- No --> LoopSteps
     UpdateMemory --> LoopSteps
 
-    ExecSlow -- Error / Timeout --> MarkCaseFail([Mark Case as FAILED])
+    ExecSlow -- Error / Timeout --> IsHITL{Is HITL Enabled?}
+    IsHITL -- "Yes (--headed & --hitl)" --> ShowOverlay[Show User Action Required Overlay]
+    ShowOverlay --> WaitUser[Wait for User to click/type]
+    WaitUser --> UpdateMemory
+
+    IsHITL -- No --> MarkCaseFail([Mark Case as FAILED])
     MarkCaseFail --> LoopCases
 ```
