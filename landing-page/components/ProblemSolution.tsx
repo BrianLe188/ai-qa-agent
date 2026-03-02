@@ -59,10 +59,8 @@ export default function ProblemSolution() {
             <div className="font-mono text-sm bg-black/50 p-4 rounded-xl border border-neon-green/20 text-white text-left">
               <div className="text-white/50 mb-2"># login-tests.md</div>
               <div className="text-neon-green/90">
-                - Click the &quot;Sign Up&quot; button
-              </div>
-              <div className="text-neon-green/90">
-                - Fill &quot;email&quot; with &quot;user@mail.com&quot;
+                - Login with &quot;user@mail.com&quot; and password
+                &quot;pass&quot;
               </div>
               <div className="mt-3 text-neon-green/60 text-xs italic flex items-center gap-2">
                 <ArrowRight className="w-3 h-3" /> Agent automatically

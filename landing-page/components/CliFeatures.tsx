@@ -84,7 +84,7 @@ export default function CliFeatures() {
               <div className="flex gap-2 mb-4">
                 <span className="text-neon-green">➜</span>
                 <span className="text-white">
-                  {"ai-qa run ./examples/login-tests.md --url http://localhost:4000"
+                  {"ai-qa run ./examples/login-tests-v2.md --url http://localhost:4000"
                     .split("")
                     .map((char, index) => (
                       <motion.span
@@ -123,7 +123,7 @@ export default function CliFeatures() {
                 transition={{ delay: 4 }}
                 className="text-emerald-400 mb-4"
               >
-                ✔ AI parsed 4 test case(s) from 1 file(s)
+                ✔ AI parsed 8 test case(s) from 1 file(s)
               </motion.div>
 
               <motion.div
@@ -138,7 +138,7 @@ export default function CliFeatures() {
                 </div>
                 <div className="text-white/60 flex flex-col gap-1">
                   <span>URL: http://localhost:4000</span>
-                  <span>Tests: 4 test cases from 1 file(s)</span>
+                  <span>Tests: 8 test cases from 1 file(s)</span>
                   <span>Model: gpt-4o-mini</span>
                   <span>Browser: headless</span>
                 </div>
@@ -151,7 +151,7 @@ export default function CliFeatures() {
                 transition={{ delay: 4.4 }}
                 className="text-white/80 mb-2"
               >
-                🚀 Starting test run with 4 test cases...
+                🚀 Starting test run with 8 test cases...
               </motion.div>
 
               <div className="flex flex-col gap-1 mb-4">
@@ -190,7 +190,7 @@ export default function CliFeatures() {
                 transition={{ delay: 6.0 }}
                 className="text-emerald-400"
               >
-                ✔ 4 passed | 0 errors
+                ✔ 8 passed | 0 errors
               </motion.div>
               <motion.div
                 initial={{ opacity: 0 }}
