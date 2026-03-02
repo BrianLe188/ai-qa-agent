@@ -434,11 +434,10 @@ async function runTestCase(
     try {
       // ======= MEMORY: Fast Path — Try cached selector first =======
       const cached = await memory.recall(step.action, testPlanId);
-      let action: PlaywrightAction;
       let usedFastPath = false;
 
       if (cached) {
-        action = {
+        const cachedAction: PlaywrightAction = {
           type: cached.mapping.actionType as any,
           selector: cached.mapping.selector,
           value: cached.mapping.actionValue || undefined,
@@ -450,11 +449,11 @@ async function runTestCase(
         reporter.onLog(
           runId,
           "info",
-          `  Step ${step.order}: ⚡ Fast Path via ${sourceName} (${(cached.similarity * 100).toFixed(0)}% match) → ${action.type}(${action.selector})`,
+          `  Step ${step.order}: ⚡ Fast Path via ${sourceName} (${(cached.similarity * 100).toFixed(0)}% match) → ${cachedAction.type}(${cachedAction.selector})`,
         );
 
         try {
-          await executeActionWithRetry(page, action);
+          await executeActionWithRetry(page, cachedAction);
           usedFastPath = true;
         } catch {
           memory.recordFailure(step.action, testPlanId);
@@ -467,50 +466,82 @@ async function runTestCase(
         }
       }
 
-      // ======= MEMORY: Slow Path — Ask AI to find the element =======
+      // ======= MEMORY: Slow Path — Ask AI (supports 1 Step → N Actions) =======
       if (!usedFastPath) {
         const pageContext = await getPageContext(page);
-        action = await ai.mapStepToAction(step, pageContext);
+        const actions = await ai.mapStepToActions(step, pageContext);
 
-        reporter.onLog(
-          runId,
-          "info",
-          `  Step ${step.order}: 🧠 AI Path → ${action.type}(${action.selector || action.url || ""})`,
-        );
+        if (actions.length === 1) {
+          // Single action — behaves exactly like the old mapStepToAction
+          const singleAction = actions[0];
+          reporter.onLog(
+            runId,
+            "info",
+            `  Step ${step.order}: 🧠 AI Path → ${singleAction.type}(${singleAction.selector || singleAction.url || ""})`,
+          );
 
-        await executeActionWithRetry(page, action);
+          await executeActionWithRetry(page, singleAction);
 
-        // Save successful AI mapping to memory
-        if (action.selector) {
-          const fingerprint: ElementFingerprint = {
-            tagName: "unknown",
-            textContent: step.action,
-          };
+          // Save successful single-action mapping to memory (cacheable)
+          if (singleAction.selector) {
+            const fingerprint: ElementFingerprint = {
+              tagName: "unknown",
+              textContent: step.action,
+            };
 
-          try {
-            const elInfo = await page.$eval(action.selector, (el: any) => ({
-              tagName: el.tagName?.toLowerCase() || "unknown",
-              textContent: (el.textContent || "").trim().slice(0, 100),
-              ariaLabel: el.getAttribute("aria-label") || undefined,
-              placeholder: el.getAttribute("placeholder") || undefined,
-              name: el.getAttribute("name") || undefined,
-              type: el.getAttribute("type") || undefined,
-              className: el.className?.toString()?.slice(0, 200) || undefined,
-            }));
-            Object.assign(fingerprint, elInfo);
-          } catch {
-            /* can't fingerprint, that's ok */
+            try {
+              const elInfo = await page.$eval(
+                singleAction.selector,
+                (el: any) => ({
+                  tagName: el.tagName?.toLowerCase() || "unknown",
+                  textContent: (el.textContent || "").trim().slice(0, 100),
+                  ariaLabel: el.getAttribute("aria-label") || undefined,
+                  placeholder: el.getAttribute("placeholder") || undefined,
+                  name: el.getAttribute("name") || undefined,
+                  type: el.getAttribute("type") || undefined,
+                  className:
+                    el.className?.toString()?.slice(0, 200) || undefined,
+                }),
+              );
+              Object.assign(fingerprint, elInfo);
+            } catch {
+              /* can't fingerprint, that's ok */
+            }
+
+            await memory.learn({
+              stepDescription: step.action,
+              testPlanId,
+              targetUrl: testUrl,
+              selector: singleAction.selector,
+              actionType: singleAction.type,
+              actionValue: singleAction.value,
+              fingerprint,
+            });
           }
+        } else {
+          // Multiple actions — high-level step decomposed by AI
+          reporter.onLog(
+            runId,
+            "info",
+            `  Step ${step.order}: 🧠 AI Path (${actions.length} sub-actions) → ${actions.map((a) => a.type).join(" → ")}`,
+          );
 
-          await memory.learn({
-            stepDescription: step.action,
-            testPlanId,
-            targetUrl: testUrl,
-            selector: action.selector,
-            actionType: action.type,
-            actionValue: action.value,
-            fingerprint,
-          });
+          for (let i = 0; i < actions.length; i++) {
+            const subAction = actions[i];
+            reporter.onLog(
+              runId,
+              "info",
+              `    ↳ [${i + 1}/${actions.length}] ${subAction.type}(${subAction.selector || subAction.url || ""}) — ${subAction.description}`,
+            );
+            await executeActionWithRetry(page, subAction);
+
+            // Brief wait between sub-actions for page to settle
+            if (i < actions.length - 1) {
+              await page.waitForTimeout(200);
+            }
+          }
+          // Note: Multi-action steps are NOT cached in memory because
+          // they depend on fresh page context each run (high-level intent).
         }
       } else {
         // Fast Path succeeded — reinforce the memory

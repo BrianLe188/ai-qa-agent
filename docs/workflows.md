@@ -56,10 +56,12 @@ flowchart TD
     FingerprintCheck -- "Element Changed" --> SlowPath
 
     SlowPath((Slow Path<br/>Self-Healing)) --> DOMSnapshot[Take accessible DOM Snapshot]
-    DOMSnapshot --> CallLLM[Call LLM to reason & find new Selector]
-    CallLLM --> ExecSlow[Execute action with new Selector]
+    DOMSnapshot --> CallLLM[Call LLM to decompose Step into 1..N Actions]
+    CallLLM --> ExecSlow["Execute Action(s) Sequentially"]
 
-    ExecSlow -- Success --> UpdateMemory[(Update Memory with new<br/>Fingerprint & Selector)]
+    ExecSlow -- Success --> IsSingleAction{N = 1?}
+    IsSingleAction -- Yes --> UpdateMemory[(Update Memory with new<br/>Fingerprint & Selector)]
+    IsSingleAction -- No --> LoopSteps
     UpdateMemory --> LoopSteps
 
     ExecSlow -- Error / Timeout --> MarkCaseFail([Mark Case as FAILED])

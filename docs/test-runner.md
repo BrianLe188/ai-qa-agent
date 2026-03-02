@@ -2,7 +2,7 @@
 
 **Location:** `server/src/services/test-runner.ts`
 
-The execution engine uses Microsoft Playwright to interface with the browser. Instead of accepting hardcoded selectors (e.g., `#submit-btn`), the Test Runner executes test scripts written entirely in **natural language steps** (e.g., "Click the Submit button").
+The execution engine uses Microsoft Playwright to interface with the browser. Instead of accepting hardcoded selectors (e.g., `#submit-btn`), the Test Runner executes test scripts written entirely in **natural language steps** (e.g., "Click the Submit button", or high-level intents like "Login with admin credentials").
 
 ## The Execution Loop: Fast Path vs. Slow Path
 
@@ -31,13 +31,14 @@ If no cached selector exists (e.g., running the step for the first time), OR if 
 - The Agent halts and captures an **Accessibility-focused DOM snapshot**. This snapshot is stripped of noise, keeping only interactive elements, texts, relationships, and coordinates.
 - It formulates a highly precise prompt combining: the DOM snapshot, the current Page URL, and the user's Natural Language Step.
 - It dispatches this context to the active LLM (e.g., OpenAI `gpt-4o-mini`).
-- The LLM reasons about the visual layout mathematically and returns an explicit, optimized CSS selector that safely targets the correct intended element.
-- The Playwright agent tests the selector and executes the action.
+- The LLM reasoning engine decomposes the step into **one or more** atomic CSS selectors and actions (the **1 Step → N Actions** feature).
+- The Playwright agent tests the selectors and executes the actions sequentially.
 
 ### 4. Memory Retention (Learning & Solidification)
 
-Post-execution, whenever the Slow Path succeeds, the Agent does not simply forget what it just deduced.
+Post-execution, whenever the Slow Path succeeds, the Agent does not simply forget what it just deduced—**if the step resulted in a single atomic action (N=1)**.
 
 - It extracts the _newly discovered_ UI element's fingerprint.
 - It caches this new fingerprint, selector, and exact step text back into both its SQLite and ChromaDB memory storages.
 - **Result:** The next time the test sequence is run on this page, the Agent exclusively shifts back to using the Fast Path, running without human intervention.
+- **Note on High-Level Steps:** If a step was decomposed into multiple actions (N>1, e.g., "Login with admin"), it is **not cached**. High-level steps depend on the fresh page context of each run to generate the correct sequence of actions safely.

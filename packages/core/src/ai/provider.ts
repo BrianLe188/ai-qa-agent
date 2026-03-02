@@ -47,11 +47,25 @@ export interface AIProvider {
   /**
    * Given a natural language test step and the current page context,
    * generate a Playwright action to execute.
+   * @deprecated Use mapStepToActions() for better high-level step support
    */
   mapStepToAction(
     step: TestStep,
     pageContext: PageContext,
   ): Promise<PlaywrightAction>;
+
+  /**
+   * Given a natural language test step (possibly high-level like "Login with admin/123")
+   * and the current page context, generate one or more Playwright actions to execute.
+   * This enables users to write concise, business-level steps instead of
+   * detailed click-by-click instructions.
+   *
+   * Default implementation: calls mapStepToAction() and wraps in an array.
+   */
+  mapStepToActions(
+    step: TestStep,
+    pageContext: PageContext,
+  ): Promise<PlaywrightAction[]>;
 
   /**
    * Analyze a test failure: given the screenshot, expected vs actual,

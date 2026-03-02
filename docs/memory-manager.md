@@ -2,7 +2,10 @@
 
 **Location:** `server/src/services/memory-manager.ts`
 
-The memory system acts as the long-term knowledge base for the AI QA Agent. Whenever a step relies on a user's natural language, the Memory Manager uses different caching and storage layers to retrieve the correct implementation context.
+The memory system acts as the long-term knowledge base for the AI QA Agent. Whenever an atomic step relies on a user's natural language, the Memory Manager uses different caching and storage layers to retrieve the correct implementation context.
+
+> [!NOTE]
+> **Single vs Multiple Action Caching:** Steps that decompose into exactly _one_ Playwright action (N=1) are cached into Memory (Fast Path) to guarantee `<5ms` execution times on future runs. High-level business steps that decompose into _multiple_ sequential Playwright actions (N>1, e.g., "Login with admin credentials") are **not** cached to ensure accurate decision making on live DOMs.
 
 ## Technology Stack
 

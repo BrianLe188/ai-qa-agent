@@ -193,6 +193,25 @@ const PLAYWRIGHT_ACTION_SCHEMA = {
   },
 };
 
+/** Schema for mapStepToActions response (array of actions) */
+const PLAYWRIGHT_ACTIONS_SCHEMA = {
+  name: "playwright_actions",
+  strict: true,
+  schema: {
+    type: "object" as const,
+    properties: {
+      actions: {
+        type: "array" as const,
+        items: PLAYWRIGHT_ACTION_SCHEMA.schema,
+        description:
+          "Array of Playwright actions to execute in order. For simple steps, return a single action. For complex/high-level steps (e.g. 'Login with admin/123'), decompose into multiple atomic actions.",
+      },
+    },
+    required: ["actions"] as const,
+    additionalProperties: false as const,
+  },
+};
+
 /** Schema for analyzeFailure response */
 const FAILURE_ANALYSIS_SCHEMA = {
   name: "failure_analysis",
@@ -316,6 +335,48 @@ CRITICAL RULES — YOU MUST FOLLOW THESE EXACTLY:
 8. **For assert actions:** Always set assertType. If checking text, use "contains-text". If checking visibility, use "visible" or "hidden".`;
 
 const FAILURE_ANALYSIS_PROMPT = `You are a QA expert analyzing test failures. Given a screenshot and expected vs actual results, provide a detailed analysis of what went wrong, possible root causes, and suggested fixes.`;
+
+const STEP_TO_ACTIONS_PROMPT = `You are a Playwright automation expert. Given a test step description and the current page context (HTML elements), generate the appropriate Playwright action(s).
+
+IMPORTANT: The test step may be a HIGH-LEVEL business instruction (e.g. "Login with admin@test.com / 123456") or a LOW-LEVEL atomic action (e.g. "Click the Submit button").
+
+- If the step is HIGH-LEVEL (involves multiple UI interactions to complete), decompose it into multiple atomic Playwright actions in the correct order.
+  Example: "Login with admin@test.com / 123456" → [
+    { type: "fill", selector: "#email", value: "admin@test.com", description: "Fill email field" },
+    { type: "fill", selector: "#password", value: "123456", description: "Fill password field" },
+    { type: "click", selector: "button:has-text('Login')", description: "Click login button" }
+  ]
+
+- If the step is LOW-LEVEL (a single UI interaction), return exactly one action in the array.
+  Example: "Click the Sign In button" → [
+    { type: "click", selector: "button:has-text('Sign In')", description: "Click Sign In button" }
+  ]
+
+CRITICAL RULES:
+
+1. **Follow the step description LITERALLY.** Do NOT invent actions beyond what the step requires.
+   - If the step says "Navigate to /", you MUST navigate to "/" (the root), NOT "/login".
+   - If the step says "Login with X/Y", you should fill credentials + click submit. Do NOT add assertions or extra navigations.
+
+2. **For navigate actions:** The url field must be the EXACT path from the step description, combined with the base URL.
+
+3. **For interact actions (click, fill, select, etc.):**
+   - First try to match by id selector (#id)
+   - Then by name attribute ([name="..."])
+   - Then by placeholder text ([placeholder="..."])
+   - Then by text content (text="...")
+   - Then by role (role=button[name="..."])
+   - Choose the MOST SPECIFIC selector available from the page context
+
+4. **For fill actions:** Use the value from the step. If the step says "Enter email" with a specific value, use that value.
+
+5. **Set unused fields to null.** For example, if the action is "click", set value, url, and assertType to null.
+
+6. **Available action types:** navigate, click, dblclick, fill, clear, select, check, uncheck, wait, assert, assert-url, assert-count, screenshot, hover, press, scroll, upload.
+
+7. **For assert actions:** Always set assertType to "visible", "hidden", "contains-text", or "has-attribute".
+
+8. **Keep the array concise.** Only include actions that are truly necessary to complete the step. Do NOT add unnecessary waits, screenshots, or assertions unless explicitly requested.`;
 
 // ─── OpenAI Provider Class ─────────────────────────────────
 
@@ -506,6 +567,57 @@ Generate the Playwright action for this step.`;
       description: result.description || step.action,
       assertType: result.assertType,
     };
+  }
+
+  async mapStepToActions(
+    step: TestStep,
+    pageContext: PageContext,
+  ): Promise<PlaywrightAction[]> {
+    const elementsDesc = pageContext.interactiveElements
+      .slice(0, 50)
+      .map(
+        (el) =>
+          `<${el.tag}${el.type ? ` type="${el.type}"` : ""}${el.id ? ` id="${el.id}"` : ""}${el.name ? ` name="${el.name}"` : ""}${el.placeholder ? ` placeholder="${el.placeholder}"` : ""} selector="${el.selector}">${el.text || ""}</${el.tag}>`,
+      )
+      .join("\n");
+
+    let pageOrigin: string;
+    try {
+      pageOrigin = new URL(pageContext.url).origin;
+    } catch {
+      pageOrigin = pageContext.url;
+    }
+
+    const userMessage = `Current page URL: ${pageContext.url}
+Page origin (base URL): ${pageOrigin}
+
+Test step to execute:
+- Action: ${step.action}
+${step.target ? `- Target: ${step.target}` : ""}
+${step.value ? `- Value: ${step.value}` : ""}
+${step.expected ? `- Expected: ${step.expected}` : ""}
+
+Available interactive elements on the page:
+${elementsDesc}
+
+Generate the Playwright action(s) for this step. If this is a high-level business step, decompose it into multiple atomic actions.`;
+
+    const result = await this.chatCompletion<{ actions: PlaywrightAction[] }>(
+      STEP_TO_ACTIONS_PROMPT,
+      userMessage,
+      PLAYWRIGHT_ACTIONS_SCHEMA,
+    );
+
+    // Normalize the returned actions
+    return (result.actions || []).map((a) => ({
+      type: a.type || "click",
+      selector: a.selector,
+      value: a.value,
+      url: a.url,
+      timeout: a.timeout,
+      description: a.description || step.action,
+      assertType: a.assertType,
+    }));
   }
 
   async analyzeFailure(
