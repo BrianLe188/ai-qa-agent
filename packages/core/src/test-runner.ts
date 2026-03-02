@@ -39,6 +39,8 @@ export interface RunnerConfig {
   memory: MemoryManager;
   screenshotsDir: string;
   options?: Partial<RunnerOptions>;
+  /** Enable Human-in-the-Loop fallback when AI fails */
+  hitl?: boolean;
 }
 
 /** Ensure URL has a protocol prefix */
@@ -358,6 +360,210 @@ async function takeScreenshot(
   return filename;
 }
 
+// ============================================================
+// HITL — Human-in-the-Loop Fallback
+// ============================================================
+
+interface HITLResult {
+  type: PlaywrightAction["type"];
+  selector: string;
+  value?: string;
+  inputType?: string;
+  tagName?: string;
+  textContent?: string;
+}
+
+/**
+ * Wait for the user to perform an action on the browser page.
+ * Injects a visual overlay and JS tracker that captures the user's click/fill.
+ * Only works in headed mode.
+ */
+async function waitForUserAction(
+  page: Page,
+  stepDescription: string,
+  reporter: RunnerReporter,
+  runId: string,
+): Promise<HITLResult> {
+  // Expose a bridge function from the browser back to Node.js
+  let resolveAction: (result: HITLResult) => void;
+  const actionPromise = new Promise<HITLResult>((resolve) => {
+    resolveAction = resolve;
+  });
+
+  const bridgeName = `__hitlReport_${Date.now()}`;
+
+  await page.exposeFunction(bridgeName, (data: string) => {
+    try {
+      const result = JSON.parse(data) as HITLResult;
+      resolveAction(result);
+    } catch {}
+  });
+
+  // Inject the HITL overlay & tracker into the page
+  await page.evaluate(
+    ({ step, bridge }) => {
+      // --- Helper: Generate an optimal CSS selector for an element ---
+      function generateSelector(el: Element): string {
+        if (el.id) return `#${el.id}`;
+        const input = el as HTMLInputElement;
+        if (input.name) return `[name="${input.name}"]`;
+        if (input.placeholder) return `[placeholder="${input.placeholder}"]`;
+        const ariaLabel = el.getAttribute("aria-label");
+        if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
+        // Fallback: use tag + text
+        const text = (el as HTMLElement).innerText?.trim().slice(0, 40);
+        if (text) return `${el.tagName.toLowerCase()}:has-text("${text}")`;
+        return el.tagName.toLowerCase();
+      }
+
+      // --- Create overlay (top-right widget) ---
+      const overlay = document.createElement("div");
+      overlay.id = "__hitl-overlay";
+      overlay.innerHTML = `
+        <div style="
+          position:fixed; top:16px; right:16px;
+          background:rgba(5,5,5,0.9);
+          border:1px solid #f59e0b;
+          border-radius:8px;
+          padding:12px 16px;
+          z-index:2147483647;
+          font-family:system-ui,sans-serif;
+          display:flex; flex-direction:column; gap:8px;
+          backdrop-filter:blur(8px);
+          box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 15px rgba(245,158,11,0.2);
+          pointer-events:none;
+          max-width:320px;
+          animation: ai-blink 2s infinite;
+        ">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:16px">🖐️</span>
+            <span style="color:#f59e0b;font-weight:700;font-size:14px;font-family:'Courier New',Courier,monospace;letter-spacing:0.5px">USER ACTION REQUIRED</span>
+          </div>
+          <div style="color:#ccc;font-size:12px;line-height:1.4;">
+            AI is stuck. Please perform:
+            <div style="background:rgba(245,158,11,0.1);padding:4px 8px;border-radius:4px;color:#f59e0b;margin-top:4px;font-family:'Courier New',monospace;word-break:break-word;">
+              ${step.replace(/"/g, "&quot;")}
+            </div>
+          </div>
+          <div style="color:#888;font-size:11px;margin-top:2px;">
+            Click/fill the element to teach the agent
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      // Hide the 'Agent Controlled' badge while HITL is active
+      const agentBadge = document.getElementById("__ai-agent-badge");
+      if (agentBadge) agentBadge.style.display = "none";
+
+      // --- Highlight hovered elements ---
+      let lastHighlight: HTMLElement | null = null;
+      const hoverHandler = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (overlay.contains(target)) return;
+        if (lastHighlight) lastHighlight.style.outline = "";
+        target.style.outline = "3px solid #f59e0b";
+        lastHighlight = target;
+      };
+      const unhoverHandler = () => {
+        if (lastHighlight) lastHighlight.style.outline = "";
+      };
+      document.addEventListener("mouseover", hoverHandler, true);
+      document.addEventListener("mouseout", unhoverHandler, true);
+
+      // --- Listen for user actions ---
+      // 1. Click handler
+      document.addEventListener(
+        "click",
+        (e: MouseEvent) => {
+          const target = e.target as HTMLElement;
+          if (overlay.contains(target)) return;
+          e.preventDefault();
+          e.stopPropagation();
+
+          const selector = generateSelector(target);
+          const input = target as HTMLInputElement;
+          const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(
+            target.tagName,
+          );
+
+          if (isInput && input.type !== "submit" && input.type !== "button") {
+            // For inputs, wait for the user to type and press Enter or blur
+            target.style.outline = "3px solid #22c55e";
+            // Update overlay message
+            const msgDiv = overlay.querySelector(
+              "div > div:last-child",
+            ) as HTMLElement;
+            if (msgDiv)
+              msgDiv.innerHTML =
+                '<span style="color:#22c55e">✎ Input selected! Type your value then press <kbd style="background:#333;padding:2px 6px;border-radius:4px">Enter</kbd> or click elsewhere.</span>';
+
+            const finishInput = () => {
+              const value = input.value || "";
+              cleanup();
+              (window as any)[bridge](
+                JSON.stringify({
+                  type: "fill",
+                  selector,
+                  value,
+                  inputType: input.type || "text",
+                  tagName: target.tagName.toLowerCase(),
+                  textContent: (target.innerText || "").slice(0, 100),
+                }),
+              );
+            };
+
+            target.addEventListener("keydown", (ke: KeyboardEvent) => {
+              if (ke.key === "Enter") finishInput();
+            });
+            target.addEventListener("blur", finishInput, { once: true });
+          } else {
+            // Button/link click
+            cleanup();
+            (window as any)[bridge](
+              JSON.stringify({
+                type: "click",
+                selector,
+                tagName: target.tagName.toLowerCase(),
+                textContent: (target.innerText || "").slice(0, 100),
+              }),
+            );
+          }
+        },
+        { capture: true, once: false },
+      );
+
+      function cleanup() {
+        document.removeEventListener("mouseover", hoverHandler, true);
+        document.removeEventListener("mouseout", unhoverHandler, true);
+        if (lastHighlight) lastHighlight.style.outline = "";
+        overlay.remove();
+        // Restore the 'Agent Controlled' badge
+        const badge = document.getElementById("__ai-agent-badge");
+        if (badge) badge.style.display = "";
+      }
+    },
+    { step: stepDescription, bridge: bridgeName },
+  );
+
+  reporter.onLog(
+    runId,
+    "warn",
+    `  🖐️ HITL: Waiting for user action on browser...`,
+  );
+
+  // Wait indefinitely for the user to act
+  const result = await actionPromise;
+
+  reporter.onLog(
+    runId,
+    "info",
+    `  🖐️ HITL: User performed ${result.type}(${result.selector}${result.value ? `, "${result.value}"` : ""})`,
+  );
+
+  return result;
+}
+
 /**
  * Run a single test case
  */
@@ -589,6 +795,101 @@ async function runTestCase(
       stepResults.push(stepResult);
       reporter.onTestStepCompleted(runId, testCase.id, stepResult);
     } catch (error: any) {
+      // ======= HITL Fallback: Ask user for help (headed mode only) =======
+      const isHeaded = !config.options?.headless;
+      const hitlEnabled = config.hitl === true;
+
+      if (hitlEnabled && isHeaded) {
+        reporter.onLog(
+          runId,
+          "warn",
+          `  ⚠️ Step ${step.order} failed: ${error.message}`,
+        );
+        reporter.onLog(
+          runId,
+          "warn",
+          `  🖐️ HITL activated — switching to Human-in-the-Loop mode`,
+        );
+
+        try {
+          const hitlResult = await waitForUserAction(
+            page,
+            step.action,
+            reporter,
+            runId,
+          );
+
+          // Execute the action the user showed us
+          const hitlAction: PlaywrightAction = {
+            type: hitlResult.type,
+            selector: hitlResult.selector,
+            value: hitlResult.value,
+            description: `[HITL] ${step.action}`,
+          };
+          await executeAction(page, hitlAction);
+
+          // Save to memory so we never need to ask again
+          const fingerprint: ElementFingerprint = {
+            tagName: hitlResult.tagName || "unknown",
+            textContent: hitlResult.textContent || step.action,
+          };
+          await memory.learn({
+            stepDescription: step.action,
+            testPlanId,
+            targetUrl: testUrl,
+            selector: hitlResult.selector,
+            actionType: hitlResult.type,
+            actionValue: hitlResult.value,
+            fingerprint,
+          });
+
+          reporter.onLog(
+            runId,
+            "info",
+            `  ✅ HITL: Action learned and saved to memory`,
+          );
+
+          // Wait for network to settle
+          try {
+            await page.waitForLoadState("networkidle", { timeout: 3000 });
+          } catch {
+            await page.waitForTimeout(300);
+          }
+
+          // Take screenshot
+          let stepScreenshot: string | undefined;
+          try {
+            stepScreenshot = await takeScreenshot(
+              page,
+              `hitl-${testCase.id}-${step.order}`,
+              screenshotsDir,
+            );
+          } catch {
+            /* ignore */
+          }
+
+          const stepResult: StepResult = {
+            stepOrder: step.order,
+            status: "passed",
+            action: `[HITL] ${step.action}`,
+            expected: step.expected,
+            screenshotPath: stepScreenshot,
+            durationMs: Date.now() - stepStart,
+          };
+          stepResults.push(stepResult);
+          reporter.onTestStepCompleted(runId, testCase.id, stepResult);
+          continue; // Move to next step
+        } catch (hitlError: any) {
+          reporter.onLog(
+            runId,
+            "error",
+            `  ❌ HITL also failed: ${hitlError.message}`,
+          );
+          // Fall through to normal failure handling below
+        }
+      }
+
+      // ======= Normal failure (no HITL, or HITL failed) =======
       let screenshotPath: string | undefined;
       try {
         screenshotPath = await takeScreenshot(
@@ -764,27 +1065,28 @@ export async function runTests(
                 background-size: 30px 30px;
                 border: 2px solid rgba(0, 255, 128, 0.3); 
               }
-              body::after {
-                content: '⚡ AI QA AGENT CONTROLLED';
-                position: fixed;
-                top: 16px;
-                right: 16px;
-                background: rgba(5, 5, 5, 0.85);
-                color: #00ff80;
-                padding: 8px 16px;
-                border-radius: 8px;
-                border: 1px solid rgba(0, 255, 128, 0.4);
-                font-family: 'Courier New', Courier, monospace;
-                font-size: 14px;
-                font-weight: bold;
-                letter-spacing: 0.5px;
-                z-index: 2147483647;
-                pointer-events: none;
-                backdrop-filter: blur(8px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 255, 128, 0.2);
-                animation: ai-blink 2s infinite;
-              }
             `,
+          });
+
+          // Inject agent badge as a real DOM element (toggleable by HITL)
+          await page.evaluate(() => {
+            if (document.getElementById("__ai-agent-badge")) return;
+            const badge = document.createElement("div");
+            badge.id = "__ai-agent-badge";
+            badge.textContent = "⚡ AI QA AGENT CONTROLLED";
+            badge.style.cssText = `
+              position:fixed; top:16px; right:16px;
+              background:rgba(5,5,5,0.85); color:#00ff80;
+              padding:8px 16px; border-radius:8px;
+              border:1px solid rgba(0,255,128,0.4);
+              font-family:'Courier New',Courier,monospace;
+              font-size:14px; font-weight:bold; letter-spacing:0.5px;
+              z-index:2147483647; pointer-events:none;
+              backdrop-filter:blur(8px);
+              box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 15px rgba(0,255,128,0.2);
+              animation:ai-blink 2s infinite;
+            `;
+            document.body.appendChild(badge);
           });
         } catch {}
       });

@@ -11,10 +11,13 @@ export function registerPlansCommand(program: Command) {
     .command("plans")
     .description("List all saved test plans")
     .option("-d, --dir <dir>", "Project directory", ".")
+    .option("-n, --limit <n>", "Limit number of plans shown", "20")
     .action(async (options) => {
       const projectDir = resolve(options.dir);
       const localDb = createLocalDatabase(projectDir);
-      const plans = localDb.listTestPlans();
+      const allPlans = localDb.listTestPlans();
+      const limit = parseInt(options.limit) || 20;
+      const plans = allPlans.slice(0, limit);
 
       console.log();
       console.log(
@@ -45,6 +48,16 @@ export function registerPlansCommand(program: Command) {
           console.log();
         }
       }
+
+      if (allPlans.length > limit) {
+        console.log(
+          chalk.gray(
+            `  Showing ${limit} of ${allPlans.length} plans. Use --limit to see more.`,
+          ),
+        );
+        console.log();
+      }
+
       console.log(chalk.gray("─".repeat(50)));
       localDb.close();
     });

@@ -29,6 +29,11 @@ export function registerRerunCommand(program: Command) {
     .option("-q, --quiet", "Minimal output", false)
     .option("--no-memory", "Disable self-healing memory")
     .option("--no-report", "Skip HTML report generation")
+    .option(
+      "--hitl",
+      "Enable Human-in-the-Loop: ask user for help when AI fails (requires --headed)",
+      false,
+    )
     .action(async (runId: string, options) => {
       try {
         await rerunAction(runId, options);
@@ -129,6 +134,11 @@ async function rerunAction(runId: string, options: any) {
     console.log(
       `  ${chalk.gray("Browser:")}     ${headed ? chalk.green("headed") : chalk.gray("headless")}`,
     );
+    if (options.hitl) {
+      console.log(
+        `  ${chalk.gray("HITL:")}        ${chalk.yellow("enabled")} (will ask user for help on failure)`,
+      );
+    }
     console.log(chalk.gray("─".repeat(50)));
   }
 
@@ -137,6 +147,7 @@ async function rerunAction(runId: string, options: any) {
     memory,
     screenshotsDir: localDb.screenshotsDir,
     options: runnerOptions,
+    hitl: options.hitl || false,
   };
 
   const run = await runTests(

@@ -48,6 +48,11 @@ export function registerRunCommand(program: Command) {
     .option("-q, --quiet", "Minimal output", false)
     .option("--no-memory", "Disable self-healing memory")
     .option("--no-report", "Skip HTML report generation")
+    .option(
+      "--hitl",
+      "Enable Human-in-the-Loop: ask user for help when AI fails (requires --headed)",
+      false,
+    )
     .action(async (inputPath: string, options) => {
       try {
         await runAction(inputPath, options);
@@ -207,6 +212,11 @@ async function runAction(inputPath: string | undefined, options: any) {
     console.log(
       `  ${chalk.gray("Browser:")}   ${headed ? chalk.green("headed") : chalk.gray("headless")}`,
     );
+    if (options.hitl) {
+      console.log(
+        `  ${chalk.gray("HITL:")}      ${chalk.yellow("enabled")} (will ask user for help on failure)`,
+      );
+    }
     console.log(
       `  ${chalk.gray("Slow Mo:")}   ${chalk.white(String(runnerOptions.slowMo) + "ms")}`,
     );
@@ -221,6 +231,7 @@ async function runAction(inputPath: string | undefined, options: any) {
     memory,
     screenshotsDir: localDb.screenshotsDir,
     options: runnerOptions,
+    hitl: options.hitl || false,
   };
 
   const run = await runTests(testPlanId, runId, testCases, targetUrl, config);
