@@ -721,6 +721,75 @@ export async function runTests(
     page.setDefaultTimeout(opts.timeout);
     setupDialogHandler(page);
 
+    // Show visual indicator that AI QA Agent is controlling the browser
+    if (!opts.headless) {
+      page.on("domcontentloaded", async () => {
+        try {
+          await page.addStyleTag({
+            content: `
+              @keyframes ai-pulse {
+                0%, 100% { box-shadow: inset 0 0 80px 10px rgba(0, 255, 128, 0.15); }
+                50% { box-shadow: inset 0 0 160px 40px rgba(0, 255, 128, 0.4); }
+              }
+              @keyframes ai-scanline {
+                0% { transform: translateY(-100vh); }
+                100% { transform: translateY(100vh); }
+              }
+              @keyframes ai-blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+              }
+
+              html::before {
+                content: '';
+                position: fixed;
+                top: 0; left: 0; right: 0;
+                height: 15vh;
+                background: linear-gradient(to bottom, transparent, rgba(0, 255, 128, 0.15), transparent);
+                pointer-events: none;
+                z-index: 2147483646;
+                animation: ai-scanline 3s linear infinite;
+              }
+
+              body::before {
+                content: '';
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                pointer-events: none;
+                z-index: 2147483645;
+                animation: ai-pulse 2.5s ease-in-out infinite;
+                background: 
+                  linear-gradient(rgba(0, 255, 128, 0.03) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(0, 255, 128, 0.03) 1px, transparent 1px);
+                background-size: 30px 30px;
+                border: 2px solid rgba(0, 255, 128, 0.3); 
+              }
+              body::after {
+                content: '⚡ AI QA AGENT CONTROLLED';
+                position: fixed;
+                top: 16px;
+                right: 16px;
+                background: rgba(5, 5, 5, 0.85);
+                color: #00ff80;
+                padding: 8px 16px;
+                border-radius: 8px;
+                border: 1px solid rgba(0, 255, 128, 0.4);
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 14px;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+                z-index: 2147483647;
+                pointer-events: none;
+                backdrop-filter: blur(8px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 255, 128, 0.2);
+                animation: ai-blink 2s infinite;
+              }
+            `,
+          });
+        } catch {}
+      });
+    }
+
     for (const testCase of enabledCases) {
       const result = await runTestCase(
         page,

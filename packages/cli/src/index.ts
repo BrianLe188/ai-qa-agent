@@ -10,6 +10,7 @@ import { registerParseCommand } from "./commands/parse";
 import { registerPlansCommand } from "./commands/plans";
 import { registerRunCommand } from "./commands/run";
 import { registerRerunCommand } from "./commands/rerun";
+import { registerRunsCommand } from "./commands/runs";
 
 const program = new Command();
 
@@ -47,6 +48,7 @@ registerRunCommand(program);
 registerRerunCommand(program);
 registerParseCommand(program);
 registerPlansCommand(program);
+registerRunsCommand(program);
 registerMemoryCommand(program);
 
 program.parse();
