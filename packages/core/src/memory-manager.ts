@@ -377,7 +377,105 @@ export class MemoryManager {
   }
 
   /**
-   * 🗑️ CLEAR — Clear all memory for a test plan
+   * � EXPORT — Export all SQLite step mappings to a JSON string or array
+   */
+  exportMemory(): StepMapping[] {
+    const rows = this.db.query("SELECT * FROM step_mappings").all();
+    return rows.map((row) => this.rowToMapping(row));
+  }
+
+  /**
+   * 📥 IMPORT — Import a JSON array of step mappings into SQLite + ChromaDB
+   */
+  async importMemory(
+    mappings: StepMapping[],
+  ): Promise<{ imported: number; errors: number }> {
+    let imported = 0;
+    let errors = 0;
+    const chromaBatchIds: string[] = [];
+    const chromaBatchDocs: string[] = [];
+    const chromaBatchMetas: any[] = [];
+
+    for (const mapping of mappings) {
+      if (!mapping.id || !mapping.stepDescription || !mapping.selector) {
+        errors++;
+        continue;
+      }
+
+      try {
+        this.db
+          .query(
+            `
+          INSERT INTO step_mappings (
+              id, step_description, test_plan_id, target_url, selector, selector_type,
+              action_type, action_value, fingerprint, success_count, fail_count, last_success_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+              target_url = excluded.target_url,
+              selector = excluded.selector,
+              selector_type = excluded.selector_type,
+              action_type = excluded.action_type,
+              action_value = excluded.action_value,
+              fingerprint = excluded.fingerprint,
+              success_count = excluded.success_count,
+              fail_count = excluded.fail_count,
+              last_success_at = excluded.last_success_at,
+              updated_at = datetime('now')
+        `,
+          )
+          .run(
+            mapping.id,
+            mapping.stepDescription,
+            mapping.testPlanId || "default",
+            mapping.targetUrl || null,
+            mapping.selector,
+            mapping.selectorType || "css",
+            mapping.actionType || "click",
+            mapping.actionValue || null,
+            JSON.stringify(mapping.fingerprint || {}),
+            mapping.successCount || 1,
+            mapping.failCount || 0,
+            mapping.lastSuccessAt || new Date().toISOString(),
+          );
+
+        imported++;
+        chromaBatchIds.push(mapping.id);
+        chromaBatchDocs.push(mapping.stepDescription);
+        chromaBatchMetas.push({
+          testPlanId: mapping.testPlanId || "default",
+          selector: mapping.selector,
+          actionType: mapping.actionType || "click",
+        });
+      } catch (err) {
+        console.warn(`⚠️ Failed to import memory ID ${mapping.id}:`, err);
+        errors++;
+      }
+    }
+
+    // Attempt ChromaDB sync
+    if (chromaBatchIds.length > 0) {
+      const collection = await this.getCollection();
+      if (collection) {
+        try {
+          await collection.upsert({
+            ids: chromaBatchIds,
+            documents: chromaBatchDocs,
+            metadatas: chromaBatchMetas,
+          });
+          console.log(
+            `✅ ChromaDB synced ${chromaBatchIds.length} memory entries`,
+          );
+        } catch (err) {
+          console.warn("⚠️ Failed to sync imported data to ChromaDB:", err);
+        }
+      }
+    }
+
+    return { imported, errors };
+  }
+
+  /**
+   * �🗑️ CLEAR — Clear all memory for a test plan
    */
   async clearMemory(testPlanId?: string): Promise<number> {
     let deleted = 0;

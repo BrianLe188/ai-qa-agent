@@ -5,6 +5,7 @@ import { MemoryManager } from "@ai-qa-agent/core";
 import chalk from "chalk";
 import type { Command } from "commander";
 import { resolve } from "path";
+import { readFileSync, writeFileSync } from "fs";
 import { createLocalDatabase } from "@ai-qa-agent/core";
 
 export function registerMemoryCommand(program: Command) {
@@ -13,6 +14,8 @@ export function registerMemoryCommand(program: Command) {
     .description("View or manage self-healing memory")
     .option("--stats", "Show memory statistics")
     .option("--clear", "Clear all memory")
+    .option("--export <file>", "Export memory mappings to a JSON file")
+    .option("--import <file>", "Import memory mappings from a JSON file")
     .option("-d, --dir <dir>", "Project directory", ".")
     .action(async (options) => {
       const projectDir = resolve(options.dir);
@@ -26,6 +29,43 @@ export function registerMemoryCommand(program: Command) {
       if (options.clear) {
         const deleted = await memory.clearMemory();
         console.log(chalk.green(`🗑️  Cleared ${deleted} memory entries`));
+      } else if (options.export) {
+        const file = resolve(options.export);
+        const data = memory.exportMemory();
+        writeFileSync(file, JSON.stringify(data, null, 2), "utf-8");
+        console.log(
+          chalk.green(
+            `✅ Exported ${data.length} memory entries to ${options.export}`,
+          ),
+        );
+      } else if (options.import) {
+        const file = resolve(options.import);
+        try {
+          const content = readFileSync(file, "utf-8");
+          const data = JSON.parse(content);
+          if (!Array.isArray(data)) {
+            throw new Error(
+              "Invalid file format: Expected an array of step mappings",
+            );
+          }
+          const { imported, errors } = await memory.importMemory(data);
+          console.log(
+            chalk.green(
+              `✅ Imported ${imported} memory entries from ${options.import}`,
+            ),
+          );
+          if (errors > 0) {
+            console.log(
+              chalk.yellow(
+                `⚠️  Failed to import ${errors} entries due to errors.`,
+              ),
+            );
+          }
+        } catch (err: any) {
+          console.error(
+            chalk.red(`❌ Failed to import memory: ${err.message}`),
+          );
+        }
       } else {
         const stats = memory.getMemoryStats();
         console.log();

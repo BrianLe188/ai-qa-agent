@@ -21,8 +21,9 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
   - _Fast Path:_ The Agent remembers (via SQLite + ChromaDB) the exact selector and "element fingerprint". On subsequent runs, it executes instantly without calling the AI API.
   - _Self-Healing:_ If a UI change breaks the cached selector, the Agent instantly detects the fingerprint mismatch and falls back to the AI (Slow Path) to learn the new layout.
 - 🖐️ **Human-in-the-Loop (HITL)**: If the agent gets stuck, it pauses and asks for help via an interactive overlay. You can teach it **Click**, **Hover**, **Assert**, and **Scroll** actions.
-  - 🧠 **Live Selector Tooltip**: In HITL mode, rà chuột (hover) to see real-time CSS selector generation.
+  - 🧠 **Live Selector Tooltip**: In HITL mode, hover to see real-time CSS selector generation.
   - 📝 **Learned Actions**: Recorded actions are automatically converted into deterministic cached Memory for future autonomous CI/CD runs.
+  - 🖱️ **Draggable & Minimizable UI**: The HITL panel and agent badge can be dragged or minimized to ensure they never obscure your application's UI during testing.
 - 🛡️ **Strict Isolation**: Memory and selectors are isolated per project in the `.ai-qa/` directory.
 - **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states.
 - **⚡ Insanely Fast Backend:** Built on top of **Bun**, **ElysiaJS**, and a unified **Core Engine**.
@@ -168,20 +169,30 @@ The `parse` command uses AI to read any document (Markdown, text, etc.), extract
 ai-qa parse examples/login-tests.md --url http://localhost:4000
 ```
 
-### 4. List Saved Test Plans
+### 4. Manage Test Plans and Runs
 
-View all test plans that have been created via `parse` (or the Server Dashboard).
+View and manage test plans that have been created via `parse` (or the Server Dashboard), as well as their execution test runs.
 
 > [!NOTE]
 > The `ai-qa` command looks for the `.ai-qa/` database directory within your current working directory. To access your project's test plans and memory, ensure you run these commands from the **root of your project**.
 
 ```bash
+# List all saved test plans
 ai-qa plans
+
+# Delete a test plan (and all associated test runs)
+ai-qa rm-plan <planId>
+
+# List all test runs (optionally pass --plan <planId> to filter)
+ai-qa runs
+
+# Delete a specific test run
+ai-qa rm-run <runId>
 ```
 
 ### 5. Manage Self-Healing Memory
 
-The memory caching layer can be inspected or cleared directly from the CLI.
+The memory caching layer can be inspected, exported, imported, or cleared directly from the CLI.
 
 **Command:** `ai-qa memory [options]`
 
@@ -189,6 +200,8 @@ The memory caching layer can be inspected or cleared directly from the CLI.
 | ----------------- | ----------------------------------------------------- |
 | `--stats`         | Show memory usage statistics (healthy/stale mappings) |
 | `--clear`         | Clear the self-healing memory and cached selectors    |
+| `--export <file>` | Export memory mappings to a JSON file                 |
+| `--import <file>` | Import memory mappings from a JSON file               |
 | `-d, --dir <dir>` | Specify the project directory                         |
 
 ```bash
