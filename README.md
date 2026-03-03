@@ -20,8 +20,10 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
   - _Slow Path:_ The AI analyzes the DOM to find the correct element for a step.
   - _Fast Path:_ The Agent remembers (via SQLite + ChromaDB) the exact selector and "element fingerprint". On subsequent runs, it executes instantly without calling the AI API.
   - _Self-Healing:_ If a UI change breaks the cached selector, the Agent instantly detects the fingerprint mismatch and falls back to the AI (Slow Path) to learn the new layout.
-- **🖐️ Human-in-the-Loop (HITL):** When enabled, if the AI agent gets completely stuck on a step, it will pause the browser and show an interactive overlay asking for your help. Click or type on the page to teach the agent, and it will save your actions to memory for all future runs!
-- **🛡️ Strict Isolation:** Memory and selectors are isolated per project in the `.ai-qa/` directory.
+- 🖐️ **Human-in-the-Loop (HITL)**: If the agent gets stuck, it pauses and asks for help via an interactive overlay. You can teach it **Click**, **Hover**, **Assert**, and **Scroll** actions.
+  - 🧠 **Live Selector Tooltip**: In HITL mode, rà chuột (hover) to see real-time CSS selector generation.
+  - 📝 **Learned Actions**: Recorded actions are automatically converted into deterministic cached Memory for future autonomous CI/CD runs.
+- 🛡️ **Strict Isolation**: Memory and selectors are isolated per project in the `.ai-qa/` directory.
 - **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states.
 - **⚡ Insanely Fast Backend:** Built on top of **Bun**, **ElysiaJS**, and a unified **Core Engine**.
 - **🌐 Shared Data Directory:** Both the Server Dashboard and CLI share the same `.ai-qa/` directory, meaning memory learned in the CLI is instantly available in the UI, and vice versa.

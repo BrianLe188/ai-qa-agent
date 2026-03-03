@@ -1,5 +1,19 @@
 # @ai-qa-agent/core
 
+## 0.3.0
+
+### Minor Changes
+
+- **Refactored `test-runner.ts` into specialized modules**:
+  - **`action-executor.ts`**: Executes all 17 Playwright action types with built-in retry logic.
+  - **`page-utils.ts`**: Handles DOM context extraction, screenshots, dialogs, and visual overlays.
+  - **`hitl.ts`**: Manages Human-in-the-Loop UI, 9-level selector generation, and multi-mode handlers (Click/Hover/Assert/Scroll).
+  - **`test-runner.ts`**: Orchestrates the test lifecycle (Fast Path → Slow Path → HITL fallback), reduced from 1,321 to ~490 lines.
+- **Demo App Enhancements**:
+  - Added user menu dropdowns and expanded product lists (20 items) to support HITL Hover and Scroll mode testing.
+  - Added `hitl-advanced-v2.md` test case following realistic ShopDemo application structures.
+- **Backward Compatibility**: Maintained public APIs by re-exporting from the original `test-runner.ts` entry point.
+
 ## 0.2.0
 
 ### Minor Changes
