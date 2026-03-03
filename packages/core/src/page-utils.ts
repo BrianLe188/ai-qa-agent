@@ -150,11 +150,38 @@ export function setupBrowserOverlay(page: Page): void {
           border:1px solid rgba(0,255,128,0.4);
           font-family:'Courier New',Courier,monospace;
           font-size:14px; font-weight:bold; letter-spacing:0.5px;
-          z-index:2147483647; pointer-events:none;
+          z-index:2147483647; pointer-events:auto; cursor:move;
+          user-select:none;
           backdrop-filter:blur(8px);
           box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 15px rgba(0,255,128,0.2);
           animation:ai-blink 2s infinite;
         `;
+
+        // Make draggable
+        let isDragging = false;
+        let offset = { x: 0, y: 0 };
+
+        badge.onmousedown = (e) => {
+          isDragging = true;
+          offset = {
+            x: badge.offsetLeft - e.clientX,
+            y: badge.offsetTop - e.clientY,
+          };
+          badge.style.animation = "none";
+        };
+
+        document.addEventListener("mousemove", (e) => {
+          if (!isDragging) return;
+          badge.style.left = e.clientX + offset.x + "px";
+          badge.style.top = e.clientY + offset.y + "px";
+          badge.style.right = "auto";
+        });
+
+        document.addEventListener("mouseup", () => {
+          isDragging = false;
+          badge.style.animation = "ai-blink 2s infinite";
+        });
+
         document.body.appendChild(badge);
       });
     } catch {}

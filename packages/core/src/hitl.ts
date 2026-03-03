@@ -136,45 +136,51 @@ export async function waitForUserAction(
           display:flex; flex-direction:column; gap:8px;
           backdrop-filter:blur(10px);
           box-shadow:0 4px 12px rgba(0,0,0,0.4),0 0 15px rgba(245,158,11,0.15);
-          max-width:340px;
+          width:340px;
           animation: ai-blink 2s infinite;
+          cursor: default;
         ">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:16px">🖐️</span>
-            <span style="color:#f59e0b;font-weight:700;font-size:13px;font-family:'Courier New',Courier,monospace;letter-spacing:0.5px">USER ACTION REQUIRED</span>
-          </div>
-          <div style="color:#ccc;font-size:12px;line-height:1.4;">
-            <div style="background:rgba(245,158,11,0.08);padding:4px 8px;border-radius:4px;color:#f59e0b;font-family:'Courier New',monospace;word-break:break-word;font-size:11px;">
-              ${step.replace(/"/g, "&quot;")}
+          <div id="__hitl-header" style="display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:move; user-select:none; margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid rgba(245,158,11,0.2)">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px">🖐️</span>
+              <span style="color:#f59e0b;font-weight:700;font-size:13px;font-family:'Courier New',Courier,monospace;letter-spacing:0.5px">USER ACTION</span>
             </div>
+            <button id="__hitl-minimize" style="background:none; border:none; color:#f59e0b; cursor:pointer; font-size:16px; padding:0 4px;">−</button>
           </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;" id="__hitl-modes">
-            <button data-mode="click" class="__hitl-mode-btn __hitl-mode-active" style="
-              padding:4px 10px;border-radius:5px;border:1px solid #555;
-              background:#f59e0b;color:#000;font-size:11px;font-weight:600;
-              cursor:pointer;font-family:system-ui;
-            ">🖱 Click</button>
-            <button data-mode="hover" class="__hitl-mode-btn" style="
-              padding:4px 10px;border-radius:5px;border:1px solid #555;
-              background:#222;color:#ccc;font-size:11px;font-weight:600;
-              cursor:pointer;font-family:system-ui;
-            ">👆 Hover</button>
-            <button data-mode="assert" class="__hitl-mode-btn" style="
-              padding:4px 10px;border-radius:5px;border:1px solid #555;
-              background:#222;color:#ccc;font-size:11px;font-weight:600;
-              cursor:pointer;font-family:system-ui;
-            ">✅ Assert</button>
-            <button data-mode="scroll" class="__hitl-mode-btn" style="
-              padding:4px 10px;border-radius:5px;border:1px solid #555;
-              background:#222;color:#ccc;font-size:11px;font-weight:600;
-              cursor:pointer;font-family:system-ui;
-            ">↕ Scroll</button>
+          <div id="__hitl-content" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="color:#ccc;font-size:12px;line-height:1.4;">
+              <div style="background:rgba(245,158,11,0.08);padding:4px 8px;border-radius:4px;color:#f59e0b;font-family:'Courier New',monospace;word-break:break-word;font-size:11px;">
+                ${step.replace(/"/g, "&quot;")}
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;" id="__hitl-modes">
+              <button data-mode="click" class="__hitl-mode-btn __hitl-mode-active" style="
+                padding:4px 10px;border-radius:5px;border:1px solid #555;
+                background:#f59e0b;color:#000;font-size:11px;font-weight:600;
+                cursor:pointer;font-family:system-ui;
+              ">🖱 Click</button>
+              <button data-mode="hover" class="__hitl-mode-btn" style="
+                padding:4px 10px;border-radius:5px;border:1px solid #555;
+                background:#222;color:#ccc;font-size:11px;font-weight:600;
+                cursor:pointer;font-family:system-ui;
+              ">👆 Hover</button>
+              <button data-mode="assert" class="__hitl-mode-btn" style="
+                padding:4px 10px;border-radius:5px;border:1px solid #555;
+                background:#222;color:#ccc;font-size:11px;font-weight:600;
+                cursor:pointer;font-family:system-ui;
+              ">✅ Assert</button>
+              <button data-mode="scroll" class="__hitl-mode-btn" style="
+                padding:4px 10px;border-radius:5px;border:1px solid #555;
+                background:#222;color:#ccc;font-size:11px;font-weight:600;
+                cursor:pointer;font-family:system-ui;
+              ">↕ Scroll</button>
+            </div>
+            <div id="__hitl-selector-preview" style="
+              color:#666;font-size:10px;font-family:'Courier New',monospace;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+              min-height:14px;
+            "></div>
           </div>
-          <div id="__hitl-selector-preview" style="
-            color:#666;font-size:10px;font-family:'Courier New',monospace;
-            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-            min-height:14px;
-          "></div>
         </div>
         <div id="__hitl-tooltip" style="
           position:fixed;display:none;
@@ -186,6 +192,47 @@ export async function waitForUserAction(
         "></div>
       `;
       document.body.appendChild(overlay);
+
+      const panel = document.getElementById("__hitl-panel")!;
+      const header = document.getElementById("__hitl-header")!;
+      const content = document.getElementById("__hitl-content")!;
+      const minBtn = document.getElementById("__hitl-minimize")!;
+
+      // --- Minimize/Maximize toggle ---
+      let isMinimized = false;
+      minBtn.onclick = (e) => {
+        e.stopPropagation();
+        isMinimized = !isMinimized;
+        content.style.display = isMinimized ? "none" : "flex";
+        minBtn.textContent = isMinimized ? "+" : "−";
+        panel.style.width = isMinimized ? "auto" : "340px";
+      };
+
+      // --- Draggable logic for Panel ---
+      let isDragging = false;
+      let offset = { x: 0, y: 0 };
+
+      header.onmousedown = (e) => {
+        isDragging = true;
+        offset = {
+          x: panel.offsetLeft - e.clientX,
+          y: panel.offsetTop - e.clientY,
+        };
+        panel.style.animation = "none";
+      };
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        panel.style.left = e.clientX + offset.x + "px";
+        panel.style.top = e.clientY + offset.y + "px";
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      });
+
+      document.addEventListener("mouseup", () => {
+        isDragging = false;
+        if (!isMinimized) panel.style.animation = "ai-blink 2s infinite";
+      });
 
       // Hide the 'Agent Controlled' badge while HITL is active
       const agentBadge = document.getElementById("__ai-agent-badge");
