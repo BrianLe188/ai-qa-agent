@@ -162,7 +162,12 @@ export function createLocalDatabase(projectDir: string) {
   }
 
   function deleteTestPlan(id: string): void {
+    sqliteDb.query("DELETE FROM test_runs WHERE test_plan_id = ?").run(id);
     sqliteDb.query("DELETE FROM test_plans WHERE id = ?").run(id);
+  }
+
+  function deleteTestRun(id: string): void {
+    sqliteDb.query("DELETE FROM test_runs WHERE id = ?").run(id);
   }
 
   // --- Test Runs ---
@@ -258,6 +263,7 @@ export function createLocalDatabase(projectDir: string) {
     saveTestRun,
     getTestRun,
     listTestRuns,
+    deleteTestRun,
     close: () => sqliteDb.close(),
   };
 }

@@ -11,6 +11,8 @@ import { registerPlansCommand } from "./commands/plans";
 import { registerRunCommand } from "./commands/run";
 import { registerRerunCommand } from "./commands/rerun";
 import { registerRunsCommand } from "./commands/runs";
+import { registerRmPlanCommand } from "./commands/rm-plan";
+import { registerRmRunCommand } from "./commands/rm-run";
 
 const program = new Command();
 
@@ -48,7 +50,9 @@ registerRunCommand(program);
 registerRerunCommand(program);
 registerParseCommand(program);
 registerPlansCommand(program);
+registerRmPlanCommand(program);
 registerRunsCommand(program);
+registerRmRunCommand(program);
 registerMemoryCommand(program);
 
 program.parse();
