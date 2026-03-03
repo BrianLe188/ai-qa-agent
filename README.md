@@ -27,6 +27,7 @@ Instead of writing brittle CSS selectors, you write tests in **plain English**. 
 - 🛡️ **Strict Isolation**: Memory and selectors are isolated per project in the `.ai-qa/` directory.
 - **👁️ Visual Verification:** Uses AI vision models to look at screenshots and assert complex states.
 - **⚡ Insanely Fast Backend:** Built on top of **Bun**, **ElysiaJS**, and a unified **Core Engine**.
+- **🔀 Parallel Execution:** Run multiple test cases concurrently using `--workers N`. Each worker gets its own isolated Browser Context (separate cookies, storage, cache) — no test duplication, no state leaks.
 - **🌐 Shared Data Directory:** Both the Server Dashboard and CLI share the same `.ai-qa/` directory, meaning memory learned in the CLI is instantly available in the UI, and vice versa.
 
 ---
@@ -139,6 +140,7 @@ The CLI will execute the test, use the Self-Healing Memory to speed up execution
 | `--headed`              | Run browser in headed mode (visible UI)                             | `false`       |
 | `--headless`            | Run browser in headless mode                                        | `true`        |
 | `--hitl`                | Enable Human-in-the-Loop mode if AI is stuck (requires headed mode) | `false`       |
+| `-w, --workers <n>`     | Number of parallel browser contexts for concurrent execution        | `1`           |
 | `--slow-mo <ms>`        | Slow down browser actions by specified milliseconds                 | `100`         |
 | `--timeout <ms>`        | Timeout per action in milliseconds                                  | `30000`       |
 | `-f, --format <format>` | Output format: `console` or `json`                                  | `console`     |

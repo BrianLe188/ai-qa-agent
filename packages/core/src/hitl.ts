@@ -18,6 +18,7 @@ export interface HITLResult {
   inputType?: string;
   tagName?: string;
   textContent?: string;
+  skipped?: boolean;
 }
 
 // ----- Main Function -----
@@ -175,6 +176,13 @@ export async function waitForUserAction(
                 cursor:pointer;font-family:system-ui;
               ">↕ Scroll</button>
             </div>
+            <div style="display:flex;gap:4px;margin-top:2px;">
+              <button id="__hitl-fail-btn" style="
+                flex:1;padding:5px 10px;border-radius:5px;border:1px solid #ef4444;
+                background:rgba(239,68,68,0.15);color:#ef4444;font-size:11px;font-weight:600;
+                cursor:pointer;font-family:system-ui;
+              ">❌ Mark as Failed</button>
+            </div>
             <div id="__hitl-selector-preview" style="
               color:#666;font-size:10px;font-family:'Courier New',monospace;
               overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -208,6 +216,20 @@ export async function waitForUserAction(
         panel.style.width = isMinimized ? "auto" : "340px";
       };
 
+      // --- Fail button handler ---
+      const failBtn = document.getElementById("__hitl-fail-btn")!;
+      failBtn.onclick = (e) => {
+        e.stopPropagation();
+        cleanup();
+        (window as any)[bridge](
+          JSON.stringify({
+            type: "assert",
+            selector: "body",
+            skipped: true,
+          }),
+        );
+      };
+
       // --- Draggable logic for Panel ---
       let isDragging = false;
       let offset = { x: 0, y: 0 };
@@ -233,10 +255,6 @@ export async function waitForUserAction(
         isDragging = false;
         if (!isMinimized) panel.style.animation = "ai-blink 2s infinite";
       });
-
-      // Hide the 'Agent Controlled' badge while HITL is active
-      const agentBadge = document.getElementById("__ai-agent-badge");
-      if (agentBadge) agentBadge.style.display = "none";
 
       // --- Action mode buttons handler ---
       const modeContainer = document.getElementById("__hitl-modes")!;
@@ -407,9 +425,6 @@ export async function waitForUserAction(
         document.removeEventListener("mouseout", unhoverHandler, true);
         if (lastHighlight) lastHighlight.style.outline = "";
         overlay.remove();
-        // Restore the 'Agent Controlled' badge
-        const badge = document.getElementById("__ai-agent-badge");
-        if (badge) badge.style.display = "";
       }
     },
     { step: stepDescription, bridge: bridgeName },

@@ -31,13 +31,19 @@ export async function executeAction(
 
     case "click":
       if (action.selector) {
-        await page.locator(action.selector).first().click({ timeout });
+        await page
+          .locator(action.selector)
+          .first()
+          .click({ timeout, force: true });
       }
       break;
 
     case "dblclick":
       if (action.selector) {
-        await page.locator(action.selector).first().dblclick({ timeout });
+        await page
+          .locator(action.selector)
+          .first()
+          .dblclick({ timeout, force: true });
       }
       break;
 
@@ -67,19 +73,28 @@ export async function executeAction(
 
     case "check":
       if (action.selector) {
-        await page.locator(action.selector).first().check({ timeout });
+        await page
+          .locator(action.selector)
+          .first()
+          .check({ timeout, force: true });
       }
       break;
 
     case "uncheck":
       if (action.selector) {
-        await page.locator(action.selector).first().uncheck({ timeout });
+        await page
+          .locator(action.selector)
+          .first()
+          .uncheck({ timeout, force: true });
       }
       break;
 
     case "hover":
       if (action.selector) {
-        await page.locator(action.selector).first().hover({ timeout });
+        await page
+          .locator(action.selector)
+          .first()
+          .hover({ timeout, force: true });
       }
       break;
 
@@ -213,6 +228,7 @@ export async function executeActionWithRetry(
   page: Page,
   action: PlaywrightAction,
   maxRetries: number = 2,
+  onRetry?: (attempt: number, maxRetries: number, error: Error) => void,
 ): Promise<void> {
   let lastError: Error | null = null;
 
@@ -223,6 +239,7 @@ export async function executeActionWithRetry(
     } catch (error: any) {
       lastError = error;
       if (attempt < maxRetries) {
+        onRetry?.(attempt + 1, maxRetries, error);
         await page.waitForTimeout(500);
       }
     }

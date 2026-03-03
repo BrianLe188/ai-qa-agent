@@ -72,13 +72,15 @@ export interface RunnerConfig {
   options?: Partial<RunnerOptions>;
   /** Enable Human-in-the-Loop fallback when AI fails */
   hitl?: boolean;
+  /** Number of parallel browser contexts (workers) to run test cases concurrently. Default: 1 (sequential). */
+  workers?: number;
 }
 
 const DEFAULT_OPTIONS: RunnerOptions = {
   headless: false,
   slowMo: 100,
   viewport: { width: 1280, height: 720 },
-  timeout: 30000,
+  timeout: 10000,
 };
 
 // ============================================================
@@ -154,6 +156,8 @@ async function runTestCase(
     }
 
     const stepStart = Date.now();
+    // When HITL is enabled, skip retries — fail fast and let user help
+    const maxRetries = config.hitl ? 0 : 2;
 
     try {
       // ======= MEMORY: Fast Path — Try cached selector first =======
@@ -177,7 +181,18 @@ async function runTestCase(
         );
 
         try {
-          await executeActionWithRetry(page, cachedAction);
+          await executeActionWithRetry(
+            page,
+            cachedAction,
+            maxRetries,
+            (attempt, max, err) => {
+              reporter.onLog(
+                runId,
+                "warn",
+                `  Step ${step.order}: ⚡ Fast Path retry ${attempt}/${max} — ${err.message.split("\n")[0]}`,
+              );
+            },
+          );
           usedFastPath = true;
         } catch {
           memory.recordFailure(step.action, testPlanId);
@@ -204,7 +219,18 @@ async function runTestCase(
             `  Step ${step.order}: 🧠 AI Path → ${singleAction.type}(${singleAction.selector || singleAction.url || ""})`,
           );
 
-          await executeActionWithRetry(page, singleAction);
+          await executeActionWithRetry(
+            page,
+            singleAction,
+            maxRetries,
+            (attempt, max, err) => {
+              reporter.onLog(
+                runId,
+                "warn",
+                `  Step ${step.order}: 🧠 AI Path retry ${attempt}/${max} — ${err.message.split("\n")[0]}`,
+              );
+            },
+          );
 
           // Save successful single-action mapping to memory (cacheable)
           if (singleAction.selector) {
@@ -257,7 +283,18 @@ async function runTestCase(
               "info",
               `    ↳ [${i + 1}/${actions.length}] ${subAction.type}(${subAction.selector || subAction.url || ""}) — ${subAction.description}`,
             );
-            await executeActionWithRetry(page, subAction);
+            await executeActionWithRetry(
+              page,
+              subAction,
+              maxRetries,
+              (attempt, max, err) => {
+                reporter.onLog(
+                  runId,
+                  "warn",
+                  `    ↳ [${i + 1}/${actions.length}] retry ${attempt}/${max} — ${err.message.split("\n")[0]}`,
+                );
+              },
+            );
 
             // Brief wait between sub-actions for page to settle
             if (i < actions.length - 1) {
@@ -336,6 +373,11 @@ async function runTestCase(
             reporter,
             runId,
           );
+
+          // User explicitly marked step as failed
+          if (hitlResult.skipped) {
+            throw new Error(`User confirmed failure: "${step.action}"`);
+          }
 
           // Execute the action the user showed us
           const hitlAction: PlaywrightAction = {
@@ -496,6 +538,7 @@ export async function runTests(
   const opts = { ...DEFAULT_OPTIONS, ...(config.options || {}) };
   targetUrl = normalizeUrl(targetUrl);
   const { reporter } = config;
+  const workerCount = Math.max(1, config.workers || 1);
 
   const enabledCases = testCases.filter((tc) => tc.enabled);
 
@@ -518,12 +561,14 @@ export async function runTests(
   reporter.onTestRunStarted(runId, enabledCases.length);
   initPauseState(runId);
 
+  const modeLabel =
+    workerCount > 1 ? `(${workerCount} workers)` : "(sequential)";
   reporter.onLog(
     runId,
     "info",
     existingRun
-      ? `🔄 Rerunning test run ${runId} with ${enabledCases.length} test cases against ${targetUrl}`
-      : `🚀 Starting test run with ${enabledCases.length} test cases against ${targetUrl}`,
+      ? `🔄 Rerunning test run ${runId} with ${enabledCases.length} test cases against ${targetUrl} ${modeLabel}`
+      : `🚀 Starting test run with ${enabledCases.length} test cases against ${targetUrl} ${modeLabel}`,
   );
 
   let browser: Browser | null = null;
@@ -534,47 +579,101 @@ export async function runTests(
       slowMo: opts.slowMo,
     });
 
-    const context: BrowserContext = await browser.newContext({
-      viewport: opts.viewport,
-    });
+    if (workerCount <= 1) {
+      // ===================== Sequential Mode (original behavior) =====================
+      const context: BrowserContext = await browser.newContext({
+        viewport: opts.viewport,
+      });
 
-    const page = await context.newPage();
-    page.setDefaultTimeout(opts.timeout);
-    setupDialogHandler(page);
+      const page = await context.newPage();
+      page.setDefaultTimeout(opts.timeout);
+      setupDialogHandler(page);
 
-    // Show visual indicator that AI QA Agent is controlling the browser
-    if (!opts.headless) {
-      setupBrowserOverlay(page);
-    }
-
-    for (const testCase of enabledCases) {
-      const result = await runTestCase(
-        page,
-        testCase,
-        targetUrl,
-        runId,
-        testPlanId,
-        config,
-      );
-      run.results.push(result);
-
-      switch (result.status) {
-        case "passed":
-          run.summary.passed++;
-          break;
-        case "failed":
-          run.summary.failed++;
-          break;
-        case "skipped":
-          run.summary.skipped++;
-          break;
-        case "error":
-          run.summary.error++;
-          break;
+      if (!opts.headless) {
+        setupBrowserOverlay(page);
       }
-    }
 
-    await context.close();
+      for (const testCase of enabledCases) {
+        const result = await runTestCase(
+          page,
+          testCase,
+          targetUrl,
+          runId,
+          testPlanId,
+          config,
+        );
+        run.results.push(result);
+        updateSummary(run.summary, result.status);
+      }
+
+      await context.close();
+    } else {
+      // ===================== Parallel Mode (worker pool) =====================
+      reporter.onLog(
+        runId,
+        "info",
+        `🔀 Parallel mode: Launching ${workerCount} browser contexts...`,
+      );
+
+      // Create a task queue — each test case index
+      const taskQueue: number[] = enabledCases.map((_, i) => i);
+      // Pre-allocate result slots so order is preserved
+      const resultSlots: (TestCaseResult | null)[] = new Array(
+        enabledCases.length,
+      ).fill(null);
+
+      // Worker function: each worker creates its own BrowserContext
+      const runWorker = async (workerId: number): Promise<void> => {
+        const context: BrowserContext = await browser!.newContext({
+          viewport: opts.viewport,
+        });
+        const page = await context.newPage();
+        page.setDefaultTimeout(opts.timeout);
+        setupDialogHandler(page);
+
+        if (!opts.headless) {
+          setupBrowserOverlay(page);
+        }
+
+        // Keep dequeuing tasks until the queue is empty
+        while (true) {
+          const taskIndex = taskQueue.shift();
+          if (taskIndex === undefined) break; // No more tasks
+
+          const testCase = enabledCases[taskIndex];
+          reporter.onLog(
+            runId,
+            "info",
+            `  🔀 Worker ${workerId + 1}: Picking up "${testCase.title}"`,
+          );
+
+          const result = await runTestCase(
+            page,
+            testCase,
+            targetUrl,
+            runId,
+            testPlanId,
+            config,
+          );
+
+          resultSlots[taskIndex] = result;
+          updateSummary(run.summary, result.status);
+        }
+
+        await context.close();
+      };
+
+      // Launch all workers concurrently
+      const workerPromises: Promise<void>[] = [];
+      const actualWorkers = Math.min(workerCount, enabledCases.length);
+      for (let i = 0; i < actualWorkers; i++) {
+        workerPromises.push(runWorker(i));
+      }
+      await Promise.all(workerPromises);
+
+      // Collect results in original order
+      run.results = resultSlots.filter((r): r is TestCaseResult => r !== null);
+    }
   } catch (error: any) {
     reporter.onTestRunError(runId, error.message);
     reporter.onLog(runId, "error", `💥 Test run crashed: ${error.message}`);
@@ -599,4 +698,27 @@ export async function runTests(
   );
 
   return run;
+}
+
+// ============================================================
+// Helper — Update summary counters
+// ============================================================
+function updateSummary(
+  summary: TestRun["summary"],
+  status: TestCaseResult["status"],
+): void {
+  switch (status) {
+    case "passed":
+      summary.passed++;
+      break;
+    case "failed":
+      summary.failed++;
+      break;
+    case "skipped":
+      summary.skipped++;
+      break;
+    case "error":
+      summary.error++;
+      break;
+  }
 }

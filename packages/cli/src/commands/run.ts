@@ -53,6 +53,11 @@ export function registerRunCommand(program: Command) {
       "Enable Human-in-the-Loop: ask user for help when AI fails (requires --headed)",
       false,
     )
+    .option(
+      "-w, --workers <n>",
+      "Number of parallel browser contexts (workers) for concurrent test execution",
+      "1",
+    )
     .action(async (inputPath: string, options) => {
       try {
         await runAction(inputPath, options);
@@ -217,6 +222,12 @@ async function runAction(inputPath: string | undefined, options: any) {
         `  ${chalk.gray("HITL:")}      ${chalk.yellow("enabled")} (will ask user for help on failure)`,
       );
     }
+    const numWorkers = parseInt(options.workers) || 1;
+    if (numWorkers > 1) {
+      console.log(
+        `  ${chalk.gray("Workers:")}   ${chalk.magenta(String(numWorkers))} parallel browser contexts`,
+      );
+    }
     console.log(
       `  ${chalk.gray("Slow Mo:")}   ${chalk.white(String(runnerOptions.slowMo) + "ms")}`,
     );
@@ -232,6 +243,7 @@ async function runAction(inputPath: string | undefined, options: any) {
     screenshotsDir: localDb.screenshotsDir,
     options: runnerOptions,
     hitl: options.hitl || false,
+    workers: parseInt(options.workers) || 1,
   };
 
   const run = await runTests(testPlanId, runId, testCases, targetUrl, config);

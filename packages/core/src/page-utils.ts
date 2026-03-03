@@ -33,13 +33,10 @@ export function setupDialogHandler(page: Page): void {
  */
 export async function getPageContext(page: Page): Promise<PageContext> {
   const url = page.url();
-  const visibleText = await page.evaluate(
-    () => document.body?.innerText?.slice(0, 2000) || "",
-  );
 
   const interactiveElements: InteractiveElement[] = await page.evaluate(() => {
     const elements = document.querySelectorAll(
-      'a, button, input, select, textarea, [role="button"], [onclick], [tabindex]',
+      'div, a, button, input, select, textarea, [role="button"], [onclick], [tabindex]',
     );
     return Array.from(elements)
       .slice(0, 50)
@@ -66,9 +63,7 @@ export async function getPageContext(page: Page): Promise<PageContext> {
       });
   });
 
-  const html = await page.content();
-
-  return { url, html: html.slice(0, 5000), visibleText, interactiveElements };
+  return { url, interactiveElements };
 }
 
 /**
@@ -135,54 +130,6 @@ export function setupBrowserOverlay(page: Page): void {
             border: 2px solid rgba(0, 255, 128, 0.3); 
           }
         `,
-      });
-
-      // Inject agent badge as a real DOM element (toggleable by HITL)
-      await page.evaluate(() => {
-        if (document.getElementById("__ai-agent-badge")) return;
-        const badge = document.createElement("div");
-        badge.id = "__ai-agent-badge";
-        badge.textContent = "⚡ AI QA AGENT CONTROLLED";
-        badge.style.cssText = `
-          position:fixed; top:16px; right:16px;
-          background:rgba(5,5,5,0.85); color:#00ff80;
-          padding:8px 16px; border-radius:8px;
-          border:1px solid rgba(0,255,128,0.4);
-          font-family:'Courier New',Courier,monospace;
-          font-size:14px; font-weight:bold; letter-spacing:0.5px;
-          z-index:2147483647; pointer-events:auto; cursor:move;
-          user-select:none;
-          backdrop-filter:blur(8px);
-          box-shadow:0 4px 12px rgba(0,0,0,0.3),0 0 15px rgba(0,255,128,0.2);
-          animation:ai-blink 2s infinite;
-        `;
-
-        // Make draggable
-        let isDragging = false;
-        let offset = { x: 0, y: 0 };
-
-        badge.onmousedown = (e) => {
-          isDragging = true;
-          offset = {
-            x: badge.offsetLeft - e.clientX,
-            y: badge.offsetTop - e.clientY,
-          };
-          badge.style.animation = "none";
-        };
-
-        document.addEventListener("mousemove", (e) => {
-          if (!isDragging) return;
-          badge.style.left = e.clientX + offset.x + "px";
-          badge.style.top = e.clientY + offset.y + "px";
-          badge.style.right = "auto";
-        });
-
-        document.addEventListener("mouseup", () => {
-          isDragging = false;
-          badge.style.animation = "ai-blink 2s infinite";
-        });
-
-        document.body.appendChild(badge);
       });
     } catch {}
   });

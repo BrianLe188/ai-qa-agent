@@ -98,8 +98,6 @@ export interface AppContext {
 
 export interface PageContext {
   url: string;
-  html: string;
-  visibleText: string;
   interactiveElements: InteractiveElement[];
 }
 
