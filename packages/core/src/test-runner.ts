@@ -22,6 +22,7 @@ import type {
   TestRun,
   PlaywrightAction,
   RunnerReporter,
+  TokenUsage,
 } from "./types";
 import { ProviderRegistry } from "./ai/registry";
 import {
@@ -158,6 +159,7 @@ async function runTestCase(
     const stepStart = Date.now();
     // When HITL is enabled, skip retries — fail fast and let user help
     const maxRetries = config.hitl ? 0 : 2;
+    let stepTokenUsage: TokenUsage | undefined;
 
     try {
       // ======= MEMORY: Fast Path — Try cached selector first =======
@@ -208,7 +210,16 @@ async function runTestCase(
       // ======= MEMORY: Slow Path — Ask AI (supports 1 Step → N Actions) =======
       if (!usedFastPath) {
         const pageContext = await getPageContext(page);
-        const actions = await ai.mapStepToActions(step, pageContext);
+        const { actions, usage } = await ai.mapStepToActions(step, pageContext);
+        stepTokenUsage = usage;
+
+        if (usage) {
+          reporter.onLog(
+            runId,
+            "info",
+            `  Step ${step.order}: 🪙 Token usage: ${usage.promptTokens} prompt + ${usage.completionTokens} completion = ${usage.totalTokens} total`,
+          );
+        }
 
         if (actions.length === 1) {
           // Single action — behaves exactly like the old mapStepToAction
@@ -345,6 +356,7 @@ async function runTestCase(
         expected: step.expected,
         screenshotPath: stepScreenshot,
         durationMs: Date.now() - stepStart,
+        tokenUsage: stepTokenUsage,
       };
 
       stepResults.push(stepResult);
@@ -470,6 +482,7 @@ async function runTestCase(
         screenshotPath,
         durationMs: Date.now() - stepStart,
         error: error.message,
+        tokenUsage: stepTokenUsage,
       };
 
       stepResults.push(stepResult);
@@ -686,6 +699,30 @@ export async function runTests(
   run.status = "completed";
   run.completedAt = new Date().toISOString();
   run.durationMs = Date.now() - new Date(run.startedAt).getTime();
+
+  let totalPrompt = 0,
+    totalCompletion = 0,
+    totalTokens = 0;
+  for (const res of run.results) {
+    for (const stepRes of res.stepResults) {
+      if (stepRes.tokenUsage) {
+        totalPrompt += stepRes.tokenUsage.promptTokens;
+        totalCompletion += stepRes.tokenUsage.completionTokens;
+        totalTokens += stepRes.tokenUsage.totalTokens;
+      }
+    }
+  }
+
+  if (totalTokens > 0) {
+    run.summary.tokenUsage = {
+      promptTokens: totalPrompt,
+      completionTokens: totalCompletion,
+      totalTokens,
+    };
+    if (typeof config.memory.recordTokenUsage === "function") {
+      config.memory.recordTokenUsage(testPlanId, runId, run.summary.tokenUsage);
+    }
+  }
 
   cleanupPauseState(runId);
 

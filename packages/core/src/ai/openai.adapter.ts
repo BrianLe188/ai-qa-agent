@@ -12,6 +12,7 @@ import type {
   PageContext,
   PlaywrightAction,
   FailureAnalysis,
+  TokenUsage,
 } from "../types";
 
 // ─── JSON Schemas for Structured Outputs ────────────────────
@@ -431,7 +432,7 @@ export class OpenAIProvider implements AIProvider {
       schema: Record<string, unknown>;
     },
     options?: { maxTokens?: number },
-  ): Promise<T> {
+  ): Promise<{ data: T; usage?: TokenUsage }> {
     const client = this.getClient();
     const response = await client.chat.completions.create({
       model: this.model,
@@ -448,7 +449,15 @@ export class OpenAIProvider implements AIProvider {
     });
 
     const content = response.choices[0]?.message?.content ?? "{}";
-    return JSON.parse(content) as T;
+    const data = JSON.parse(content) as T;
+    return {
+      data,
+      usage: {
+        promptTokens: response.usage?.prompt_tokens ?? 0,
+        completionTokens: response.usage?.completion_tokens ?? 0,
+        totalTokens: response.usage?.total_tokens ?? 0,
+      },
+    };
   }
 
   async parseTestCases(
@@ -471,7 +480,7 @@ export class OpenAIProvider implements AIProvider {
     );
 
     // Normalize fields
-    return result.testCases.map((tc, index) => ({
+    return result.data.testCases.map((tc, index) => ({
       ...tc,
       id: tc.id || `TC-${String(index + 1).padStart(3, "0")}`,
       source: "document" as const,
@@ -505,7 +514,7 @@ export class OpenAIProvider implements AIProvider {
     );
 
     const startIndex = context.existingTestCases.length + 1;
-    return result.testCases.map((tc, index) => ({
+    return result.data.testCases.map((tc, index) => ({
       ...tc,
       id: tc.id || `TC-AI-${String(startIndex + index).padStart(3, "0")}`,
       source: "ai-generated" as const,
@@ -559,20 +568,20 @@ Generate the Playwright action for this step.`;
     );
 
     return {
-      type: result.type || "click",
-      selector: result.selector,
-      value: result.value,
-      url: result.url,
-      timeout: result.timeout,
-      description: result.description || step.action,
-      assertType: result.assertType,
+      type: result.data.type || "click",
+      selector: result.data.selector,
+      value: result.data.value,
+      url: result.data.url,
+      timeout: result.data.timeout,
+      description: result.data.description || step.action,
+      assertType: result.data.assertType,
     };
   }
 
   async mapStepToActions(
     step: TestStep,
     pageContext: PageContext,
-  ): Promise<PlaywrightAction[]> {
+  ): Promise<{ actions: PlaywrightAction[]; usage?: TokenUsage }> {
     const elementsDesc = pageContext.interactiveElements
       .slice(0, 50)
       .map(
@@ -609,15 +618,18 @@ Generate the Playwright action(s) for this step. If this is a high-level busines
     );
 
     // Normalize the returned actions
-    return (result.actions || []).map((a) => ({
-      type: a.type || "click",
-      selector: a.selector,
-      value: a.value,
-      url: a.url,
-      timeout: a.timeout,
-      description: a.description || step.action,
-      assertType: a.assertType,
-    }));
+    return {
+      actions: (result.data.actions || []).map((a) => ({
+        type: a.type || "click",
+        selector: a.selector,
+        value: a.value,
+        url: a.url,
+        timeout: a.timeout,
+        description: a.description || step.action,
+        assertType: a.assertType,
+      })),
+      usage: result.usage,
+    };
   }
 
   async analyzeFailure(

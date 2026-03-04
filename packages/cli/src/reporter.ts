@@ -48,9 +48,12 @@ export function createConsoleReporter(options?: {
       if (quiet) return;
       const icon = step.status === "passed" ? chalk.green("✓") : chalk.red("✗");
       const duration = chalk.gray(`(${step.durationMs}ms)`);
+      const tokenInfo = step.tokenUsage
+        ? chalk.yellow(` [🪙 ${step.tokenUsage.totalTokens} tokens]`)
+        : "";
 
       console.log(
-        `  ${icon} ${chalk.gray(`Step ${step.stepOrder}:`)} ${step.action} ${duration}`,
+        `  ${icon} ${chalk.gray(`Step ${step.stepOrder}:`)} ${step.action} ${duration}${tokenInfo}`,
       );
 
       if (step.status === "failed" && step.error) {
@@ -110,6 +113,13 @@ export function createConsoleReporter(options?: {
           chalk.red.bold(
             `  ⚠ ${summary.failed + summary.error} test(s) need attention`,
           ),
+        );
+      }
+
+      if (summary.tokenUsage) {
+        console.log();
+        console.log(
+          `  🪙 AI Token Usage: ${chalk.yellow(summary.tokenUsage.totalTokens.toString())} (Prompt: ${summary.tokenUsage.promptTokens}, Completion: ${summary.tokenUsage.completionTokens})`,
         );
       }
       console.log();

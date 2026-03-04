@@ -43,6 +43,12 @@ export type TestStatus =
   | "skipped"
   | "error";
 
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
 export interface StepResult {
   stepOrder: number;
   status: TestStatus;
@@ -52,6 +58,7 @@ export interface StepResult {
   screenshotPath?: string;
   durationMs: number;
   error?: string;
+  tokenUsage?: TokenUsage;
 }
 
 export interface TestCaseResult {
@@ -78,6 +85,7 @@ export interface TestRun {
     failed: number;
     skipped: number;
     error: number;
+    tokenUsage?: TokenUsage;
   };
   startedAt: string;
   completedAt?: string;

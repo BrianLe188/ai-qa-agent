@@ -8,6 +8,8 @@
 import { OpenAIEmbeddingFunction } from "@chroma-core/openai";
 import { ChromaClient, type Collection } from "chromadb";
 
+import type { TokenUsage } from "./types";
+
 // ----- Types -----
 export interface ElementFingerprint {
   tagName: string;
@@ -97,6 +99,16 @@ export class MemoryManager {
       
       CREATE INDEX IF NOT EXISTS idx_step_mappings_desc
         ON step_mappings(step_description);
+
+      CREATE TABLE IF NOT EXISTS token_usages (
+        id TEXT PRIMARY KEY,
+        test_plan_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        prompt_tokens INTEGER DEFAULT 0,
+        completion_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
     `);
 
     // Initialize ChromaDB connection (non-blocking)
@@ -343,6 +355,27 @@ export class MemoryManager {
          WHERE id = ?`,
       )
       .run(id);
+  }
+
+  /**
+   * 🪙 RECORD TOKENS — Track AI token consumption
+   */
+  recordTokenUsage(testPlanId: string, runId: string, usage: TokenUsage): void {
+    const id = `use_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    this.db
+      .query(
+        `INSERT INTO token_usages
+          (id, test_plan_id, run_id, prompt_tokens, completion_tokens, total_tokens)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        testPlanId,
+        runId,
+        usage.promptTokens,
+        usage.completionTokens,
+        usage.totalTokens,
+      );
   }
 
   /**

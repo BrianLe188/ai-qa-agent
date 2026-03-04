@@ -9,6 +9,7 @@ import type {
   PageContext,
   PlaywrightAction,
   FailureAnalysis,
+  TokenUsage,
 } from "../types";
 
 /**
@@ -65,7 +66,7 @@ export interface AIProvider {
   mapStepToActions(
     step: TestStep,
     pageContext: PageContext,
-  ): Promise<PlaywrightAction[]>;
+  ): Promise<{ actions: PlaywrightAction[]; usage?: TokenUsage }>;
 
   /**
    * Analyze a test failure: given the screenshot, expected vs actual,
