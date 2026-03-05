@@ -339,7 +339,7 @@ const FAILURE_ANALYSIS_PROMPT = `You are a QA expert analyzing test failures. Gi
 
 const STEP_TO_ACTIONS_PROMPT = `You are a Playwright automation expert. Given a test step description and the current page context (HTML elements), generate the appropriate Playwright action(s).
 
-IMPORTANT: The test step may be a HIGH-LEVEL business instruction (e.g. "Login with admin@test.com / 123456") or a LOW-LEVEL atomic action (e.g. "Click the Submit button").
+IMPORTANT: The test step may be a HIGH-LEVEL business instruction (e.g. "Login with admin@test.com / 123456" or "Fill in the form: Name, Email, Role") or a LOW-LEVEL atomic action (e.g. "Click the Submit button").
 
 - If the step is HIGH-LEVEL (involves multiple UI interactions to complete), decompose it into multiple atomic Playwright actions in the correct order.
   Example: "Login with admin@test.com / 123456" → [
@@ -361,23 +361,40 @@ CRITICAL RULES:
 
 2. **For navigate actions:** The url field must be the EXACT path from the step description, combined with the base URL.
 
-3. **For interact actions (click, fill, select, etc.):**
-   - First try to match by id selector (#id)
-   - Then by name attribute ([name="..."])
-   - Then by placeholder text ([placeholder="..."])
-   - Then by text content (text="...")
-   - Then by role (role=button[name="..."])
-   - Choose the MOST SPECIFIC selector available from the page context
+3. **Identifying elements — Use ALL available metadata:**
+   Each element may have: id, name, placeholder, text, label, ariaLabel, options, value.
+   - **label** = the visible label text associated with the field (e.g. label="Role" or label="Email")
+   - **ariaLabel** = the aria-label attribute
+   - **options** = for <select> elements, the available options in "VALUE:Text" format (e.g. "EMPLOYEE:Employee | ADMIN:Admin")
+   - **value** = the current value of the field
+   Priority for matching a field to the step description:
+   a. Match by **label** text (e.g. step says "Role" → find element with label="Role")
+   b. Match by **id** selector (#id)
+   c. Match by **name** attribute ([name="..."])
+   d. Match by **placeholder** text
+   e. Match by **text** content or **ariaLabel**
+   f. Use the **selector** attribute provided for the element
 
-4. **For fill actions:** Use the value from the step. If the step says "Enter email" with a specific value, use that value.
+4. **For <select> dropdown elements:**
+   - Use action type "select" (NOT "click" or "fill")
+   - The **value** field must be one of the option VALUES from the options attribute (left side of the colon)
+   - Example: if options="EMPLOYEE:Employee | ADMIN:Admin" and the step says "select Admin", use value "ADMIN"
+   - Use the **selector** attribute provided for the <select> element
 
-5. **Set unused fields to null.** For example, if the action is "click", set value, url, and assertType to null.
+5. **For fill actions:** Use the value from the step if provided. If the step specifies a field but provides NO specific value (e.g. "Fill Name, Email, Department"), generate realistic mock data:
+   - Name → "Test User" or similar
+   - Email → "testuser_{timestamp}@example.com" (use a unique-looking value)
+   - Phone → "0901234567"
+   - Salary/Amount → "5000"
+   - Use field context (label, placeholder, name) to guess appropriate values.
 
-6. **Available action types:** navigate, click, dblclick, fill, clear, select, check, uncheck, wait, assert, assert-url, assert-count, screenshot, hover, press, scroll, upload.
+6. **Set unused fields to null.** For example, if the action is "click", set value, url, and assertType to null.
 
-7. **For assert actions:** Always set assertType to "visible", "hidden", "contains-text", or "has-attribute".
+7. **Available action types:** navigate, click, dblclick, fill, clear, select, check, uncheck, wait, assert, assert-url, assert-count, screenshot, hover, press, scroll, upload.
 
-8. **Keep the array concise.** Only include actions that are truly necessary to complete the step. Do NOT add unnecessary waits, screenshots, or assertions unless explicitly requested.`;
+8. **For assert actions:** Always set assertType to "visible", "hidden", "contains-text", or "has-attribute".
+
+9. **Keep the array concise.** Only include actions that are truly necessary to complete the step. Do NOT add unnecessary waits, screenshots, or assertions unless explicitly requested.`;
 
 // ─── OpenAI Provider Class ─────────────────────────────────
 
@@ -532,10 +549,9 @@ export class OpenAIProvider implements AIProvider {
     pageContext: PageContext,
   ): Promise<PlaywrightAction> {
     const elementsDesc = pageContext.interactiveElements
-      .slice(0, 50)
       .map(
         (el) =>
-          `<${el.tag}${el.type ? ` type="${el.type}"` : ""}${el.id ? ` id="${el.id}"` : ""}${el.name ? ` name="${el.name}"` : ""}${el.placeholder ? ` placeholder="${el.placeholder}"` : ""} selector="${el.selector}">${el.text || ""}</${el.tag}>`,
+          `<${el.tag}${el.type ? ` type="${el.type}"` : ""}${el.id ? ` id="${el.id}"` : ""}${el.name ? ` name="${el.name}"` : ""}${el.placeholder ? ` placeholder="${el.placeholder}"` : ""}${el.label ? ` label="${el.label}"` : ""}${el.ariaLabel ? ` aria-label="${el.ariaLabel}"` : ""}${el.value ? ` value="${el.value}"` : ""}${el.options ? ` options="${el.options}"` : ""} selector="${el.selector}">${el.text || ""}</${el.tag}>`,
       )
       .join("\n");
 
@@ -583,10 +599,9 @@ Generate the Playwright action for this step.`;
     pageContext: PageContext,
   ): Promise<{ actions: PlaywrightAction[]; usage?: TokenUsage }> {
     const elementsDesc = pageContext.interactiveElements
-      .slice(0, 50)
       .map(
         (el) =>
-          `<${el.tag}${el.type ? ` type="${el.type}"` : ""}${el.id ? ` id="${el.id}"` : ""}${el.name ? ` name="${el.name}"` : ""}${el.placeholder ? ` placeholder="${el.placeholder}"` : ""} selector="${el.selector}">${el.text || ""}</${el.tag}>`,
+          `<${el.tag}${el.type ? ` type="${el.type}"` : ""}${el.id ? ` id="${el.id}"` : ""}${el.name ? ` name="${el.name}"` : ""}${el.placeholder ? ` placeholder="${el.placeholder}"` : ""}${el.label ? ` label="${el.label}"` : ""}${el.ariaLabel ? ` aria-label="${el.ariaLabel}"` : ""}${el.value ? ` value="${el.value}"` : ""}${el.options ? ` options="${el.options}"` : ""} selector="${el.selector}">${el.text || ""}</${el.tag}>`,
       )
       .join("\n");
 

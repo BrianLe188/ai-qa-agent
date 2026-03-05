@@ -117,6 +117,10 @@ export interface InteractiveElement {
   id?: string;
   name?: string;
   selector: string;
+  options?: string;
+  label?: string;
+  ariaLabel?: string;
+  value?: string;
 }
 
 export interface PlaywrightAction {
